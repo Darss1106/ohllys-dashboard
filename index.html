@@ -1,0 +1,1834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ohlly's Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root{
+    --bg:#f3f1ea; --panel:#ffffff; --side:#fbfaf6;
+    --ink:#22201c; --ink-soft:#6a655b; --ink-faint:#938d81;
+    --line:#e6e1d5; --line-strong:#d5cfbf;
+    --brand:#1f6f5c; --brand-2:#0f5847; --brand-tint:#e8f2ee;
+    --amber:#b9772a; --red:#b23b34; --blue:#3f5d8c;
+    --shadow:0 1px 2px rgba(34,32,28,.05), 0 12px 30px -22px rgba(34,32,28,.6);
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --bg:#161512; --panel:#1e1c18; --side:#1a1815;
+      --ink:#f0ede4; --ink-soft:#a9a394; --ink-faint:#7d776b;
+      --line:#312e28; --line-strong:#413d35;
+      --brand:#4fbfa0; --brand-2:#78d3b8; --brand-tint:#20302b;
+      --amber:#d9a15c; --red:#e07b72; --blue:#8aa4d0;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px -22px rgba(0,0,0,.85);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#161512; --panel:#1e1c18; --side:#1a1815;
+    --ink:#f0ede4; --ink-soft:#a9a394; --ink-faint:#7d776b;
+    --line:#312e28; --line-strong:#413d35;
+    --brand:#4fbfa0; --brand-2:#78d3b8; --brand-tint:#20302b;
+    --amber:#d9a15c; --red:#e07b72; --blue:#8aa4d0;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px -22px rgba(0,0,0,.85);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .app{display:flex;height:100%;min-height:520px}
+  svg{width:20px;height:20px;flex:0 0 auto}
+
+  .sidebar{width:274px;flex:0 0 274px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;padding:18px 14px}
+  .brand{display:flex;align-items:center;gap:8px;padding:6px 8px 16px}
+  .brand .name{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.02em;color:var(--ink)}
+  .brand .pill{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#fff;background:var(--brand);padding:3px 9px;border-radius:6px;letter-spacing:.02em;transform:skewX(-8deg)}
+  .brand .pill span{display:inline-block;transform:skewX(8deg)}
+
+  .acctwrap{position:relative;margin-bottom:16px}
+  .account{display:flex;align-items:center;gap:10px;width:100%;background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:11px 12px;box-shadow:var(--shadow);cursor:pointer;font-family:inherit}
+  .account:hover{border-color:var(--brand)}
+  .account .ico{color:var(--ink-soft)}
+  .account .who{min-width:0;flex:1;text-align:left}
+  .account .who b{font-size:13.5px;font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+  .account .who small{font-size:11.5px;color:var(--ink-faint);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .account .chev{color:var(--ink-faint);transition:transform .18s}
+  .account[aria-expanded="true"] .chev{transform:rotate(180deg)}
+
+  .acctmenu{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow);padding:6px;z-index:30}
+  .acctmenu[hidden]{display:none}
+  .acctlabel{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);padding:6px 8px 4px}
+  .acctopt{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;text-align:left;padding:9px 10px;border-radius:9px;cursor:pointer;color:var(--ink);font-family:inherit}
+  .acctopt:hover{background:var(--brand-tint)}
+  .acctopt .ico{color:var(--ink-soft)}
+  .acctopt .who b{font-size:13px;font-weight:600;display:block}
+  .acctopt .who small{font-size:11px;color:var(--ink-faint);display:block}
+  .acctopt .who{flex:1;min-width:0}
+  .acctopt .chk{color:var(--brand);opacity:0}
+  .acctopt.active .chk{opacity:1}
+  .acctopt.active{background:var(--brand-tint)}
+
+  nav{display:flex;flex-direction:column;gap:2px}
+  .navitem{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;color:var(--ink-soft);font-family:inherit;font-size:14px;font-weight:500;text-align:left;padding:10px 10px;border-radius:9px;cursor:pointer;transition:background .12s,color .12s}
+  .navitem:hover{background:var(--brand-tint);color:var(--ink)}
+  .navitem .lbl{flex:1;min-width:0}
+  .navitem .chev{width:16px;height:16px;color:var(--ink-faint);transition:transform .18s}
+  .navitem[aria-expanded="true"] .chev{transform:rotate(180deg)}
+  .navitem.active{background:var(--brand-tint);color:var(--brand-2);font-weight:700}
+  .navitem.active svg{color:var(--brand)}
+  .navitem:focus-visible,.account:focus-visible,.acctopt:focus-visible,.subitem:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+
+  .seclabel{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);padding:16px 12px 6px;font-weight:600}
+
+  .children{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s ease}
+  .children.open{grid-template-rows:1fr}
+  .children > div{overflow:hidden}
+  .subitem{display:block;width:100%;border:0;background:none;color:var(--ink-soft);font-family:inherit;font-size:13px;text-align:left;padding:8px 10px 8px 44px;border-radius:8px;cursor:pointer}
+  .subitem:hover{background:var(--brand-tint);color:var(--ink)}
+  .subitem.active{color:var(--brand-2);font-weight:600}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+  .topbar{display:flex;align-items:center;gap:12px;padding:18px 24px;border-bottom:1px solid var(--line)}
+  .topbar h1{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(19px,3vw,26px);font-weight:700;margin:0;letter-spacing:-.01em;flex:1;min-width:0}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent);border:1px solid color-mix(in srgb,var(--amber) 30%,transparent);padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .date{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-faint);white-space:nowrap}
+  .content{padding:22px 24px 40px;overflow-y:auto}
+  .desc{color:var(--ink-soft);font-size:14.5px;max-width:64ch;margin:0 0 22px}
+
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px;box-shadow:var(--shadow)}
+  .tile .k{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);display:flex;align-items:center;gap:7px}
+  .tile .v{font-family:'Bricolage Grotesque',sans-serif;font-size:27px;font-weight:800;margin-top:9px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .tile .s{font-size:12px;color:var(--ink-soft);margin-top:3px}
+  .tile.good .v{color:var(--brand-2)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .d-green{background:var(--brand)} .d-amber{background:var(--amber)} .d-red{background:var(--red)} .d-blue{background:var(--blue)}
+
+  .placeholder{background:var(--panel);border:1px dashed var(--line-strong);border-radius:16px;padding:30px 24px;display:flex;gap:16px;align-items:flex-start;box-shadow:var(--shadow)}
+  .placeholder .pico{width:44px;height:44px;border-radius:12px;background:var(--brand-tint);display:flex;align-items:center;justify-content:center;color:var(--brand);flex:0 0 auto}
+  .placeholder .pico svg{width:24px;height:24px}
+  .placeholder h2{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;margin:0 0 6px;font-weight:700}
+  .placeholder p{margin:0;color:var(--ink-soft);font-size:14px;line-height:1.5;max-width:60ch}
+  .steps{margin:14px 0 0;padding-left:18px;color:var(--ink-soft);font-size:13.5px}
+  .steps li{margin-bottom:5px}
+  .note{margin-top:22px;font-size:12.5px;color:var(--ink-faint);border-left:2px solid var(--line-strong);padding-left:12px}
+
+  .rtwrap{overflow-x:auto;margin-top:18px;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  table.rt{border-collapse:collapse;width:100%;font-size:13px;min-width:460px;background:var(--panel)}
+  .rt th,.rt td{padding:9px 13px;border-bottom:1px solid var(--line);text-align:left}
+  .rt th{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);background:var(--side);font-weight:600}
+  .rt td.n{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;text-align:right}
+  .rt th.n{text-align:right}
+  .rt tr:last-child td{border-bottom:0}
+  .rt .tot td{border-top:2px solid var(--ink);font-weight:700;font-family:'Bricolage Grotesque',sans-serif}
+
+  .chart{display:flex;align-items:flex-end;gap:8px;height:190px;padding:14px 10px 8px;margin-top:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:var(--shadow)}
+  .bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:5px;min-width:0}
+  .bar .col{width:64%;max-width:48px;background:var(--brand);border-radius:6px 6px 0 0}
+  .bar .col.live{background:var(--amber)}
+  .bar .bval{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .bar .blbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-faint);white-space:nowrap}
+  .live-tag{color:var(--amber);font-weight:600}
+
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;box-shadow:var(--shadow)}
+  .rhd{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:6px}
+  .rhd span{font-family:'IBM Plex Mono',monospace;color:var(--brand-2);font-variant-numeric:tabular-nums}
+  .rrow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink-soft);padding:3px 0}
+  .rrow .rc{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+
+  .datectl{margin-bottom:4px}
+  .datesearch{width:100%;max-width:320px;padding:9px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--panel);color:var(--ink);font-family:inherit;font-size:13px}
+  .datesearch:focus{outline:2px solid var(--brand);outline-offset:1px}
+  .datelist{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .datechip{border:1px solid var(--line-strong);background:var(--panel);color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:6px 12px;border-radius:999px;cursor:pointer}
+  .datechip:hover{background:var(--brand-tint);color:var(--ink)}
+  .datechip.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .datechip .livedot{color:var(--amber);font-weight:600}
+  .datechip.active .livedot{color:#fff}
+  .datechip[hidden]{display:none}
+  .drhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .drhead .datesearch{flex:1;min-width:200px;max-width:420px}
+
+  .weeknav{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:380px}
+  .wbtn{border:1px solid var(--line-strong);background:var(--panel);color:var(--ink);font-family:inherit;font-size:13px;padding:7px 13px;border-radius:9px;cursor:pointer}
+  .wbtn:hover:not(:disabled){background:var(--brand-tint)}
+  .wbtn:disabled{opacity:.4;cursor:default}
+  .wlabel{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap}
+
+  .segbar{display:inline-flex;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+  .segbtn{border:0;background:var(--panel);color:var(--ink-soft);font-family:inherit;font-size:13px;font-weight:500;padding:8px 18px;cursor:pointer;border-right:1px solid var(--line-strong)}
+  .segbtn:last-child{border-right:0}
+  .segbtn:hover{background:var(--brand-tint);color:var(--ink)}
+  .segbtn.active{background:var(--brand);color:#fff}
+
+  .uprow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .uplabel{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+  .upbtn{border:1px solid var(--brand);background:var(--brand);color:#fff;font-family:inherit;font-size:13px;font-weight:600;padding:8px 15px;border-radius:9px;cursor:pointer}
+  .upbtn:hover{background:var(--brand-2)}
+  .uplist{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+  .upitem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:13px;box-shadow:var(--shadow)}
+  .upitem .fn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .upitem .st{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber)}
+  .upitem .rm{border:0;background:none;color:var(--ink-faint);cursor:pointer;font-size:17px;line-height:1;padding:0 2px}
+  .upitem .rm:hover{color:var(--red)}
+  .upempty{font-size:12.5px;color:var(--ink-faint)}
+
+  .exsheet td{padding:6px 8px}
+  .exin{width:100%;box-sizing:border-box;border:1px solid transparent;background:transparent;font:inherit;color:var(--ink);padding:5px 7px;border-radius:6px}
+  .exin:hover{border-color:var(--line-strong)}
+  .exin:focus{outline:none;border-color:var(--brand);background:var(--panel)}
+  .exin.exn{text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+  .exdel{border:0;background:none;color:var(--ink-faint);cursor:pointer;font-size:16px;line-height:1;padding:0 4px}
+  .exdel:hover{color:var(--red)}
+
+  @media(max-width:760px){
+    .app{flex-direction:column;height:auto;min-height:100%}
+    .sidebar{width:100%;flex:none;border-right:0;border-bottom:1px solid var(--line)}
+  }
+  /* --- Login screen --- */
+  .authwrap{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}
+  .authcard{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:28px 24px;text-align:center}
+  .authbrand{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;color:var(--brand)}
+  .authbrand span{color:var(--ink-faint);font-weight:700}
+  .authsub{color:var(--ink-soft);font-size:13.5px;margin:4px 0 20px}
+  .authcard input{width:100%;box-sizing:border-box;padding:12px 14px;margin-bottom:10px;border:1px solid var(--line-strong);border-radius:10px;font:inherit;font-size:15px;background:var(--side);color:var(--ink)}
+  .authcard input:focus{outline:none;border-color:var(--brand)}
+  .authbtn{width:100%;padding:12px 14px;border:0;border-radius:10px;background:var(--brand);color:#fff;font:inherit;font-weight:600;font-size:15px;cursor:pointer;margin-top:4px}
+  .authbtn:disabled{opacity:.6;cursor:default}
+  .authmsg{min-height:18px;font-size:12.5px;color:var(--ink-soft);margin-top:12px}
+  .authtoggle{margin-top:14px;font-size:13px;color:var(--ink-soft)}
+  .authtoggle a{color:var(--brand);text-decoration:none;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="authOverlay" class="authwrap">
+  <div class="authcard">
+    <div class="authbrand">Ohlly's <span>+ PYU</span></div>
+    <div class="authsub">Sign in to your dashboard</div>
+    <input id="authEmail" type="email" placeholder="Email" autocomplete="email">
+    <input id="authPass" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="authBtn" class="authbtn">Sign in</button>
+    <div id="authMsg" class="authmsg"></div>
+    <div class="authtoggle"><a id="authSwitch">New here? Create an account</a></div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="name" id="brandName">Ohlly's</span><span class="pill"><span id="brandTag">analysis</span></span></div>
+
+    <div class="acctwrap">
+      <button class="account" id="acctBtn" type="button" aria-expanded="false">
+        <span class="ico" id="acctIco" aria-hidden="true"></span>
+        <span class="who"><b id="acctName">Ohlly's Cafe &mdash; Mabolo</b><small id="acctSub">East Labuan, Cebu City</small></span>
+        <span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </button>
+      <div class="acctmenu" id="acctMenu" hidden>
+        <div class="acctlabel">Switch business</div>
+        <div id="acctOpts"></div>
+      </div>
+    </div>
+
+    <nav id="navRoot"></nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="viewTitle">Daily Report</h1>
+      <span class="date" id="topDate"></span>
+      <span class="chip" id="topChip">LIVE</span>
+    </div>
+    <div class="content">
+      <p class="desc" id="viewDesc"></p>
+      <div id="tilePanel">
+        <div id="dateBar" hidden></div>
+        <div id="filterBar" hidden></div>
+        <div class="tiles" id="tileGrid"></div>
+        <div id="reportTable" hidden></div>
+        <p class="note" id="tileNote"></p>
+      </div>
+      <div id="configPanel" hidden>
+        <div class="placeholder">
+          <div class="pico" id="cfgIco"></div>
+          <div>
+            <h2 id="cfgHead"></h2>
+            <p id="cfgBody"></p>
+            <ul class="steps" id="cfgSteps"></ul>
+          </div>
+        </div>
+        <p class="note">This screen is where you set up or review this part of the workflow. In the built app it becomes a form or table; here it's a preview of the structure.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  var ICONS = {
+    bars:'<path d="M5 21V11M12 21V4M19 21v-6M3 21h18"/>',
+    grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+    link:'<path d="M9.5 14.5l5-5"/><path d="M11 7.5l1-1a3.5 3.5 0 0 1 5 5l-1 1"/><path d="M13 16.5l-1 1a3.5 3.5 0 0 1-5-5l1-1"/>',
+    money:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 12h.01M18 12h.01"/>',
+    list:'<path d="M8 6h12M8 12h12M8 18h12"/><path d="M3.6 6h.01M3.6 12h.01M3.6 18h.01"/>',
+    wallet:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.3"/>',
+    cup:'<path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h2a2 2 0 0 1 0 4h-2"/><path d="M7 3v2M10 3v2M13 3v2"/>',
+    truck:'<path d="M3 6h11v9H3z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/>',
+    users:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5.5"/><path d="M17.5 20a6 6 0 0 0-3-5"/>',
+    tag:'<path d="M3 12l8-8 9 1 1 9-8 8z"/><circle cx="15" cy="9" r="1.4"/>',
+    box:'<path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/>',
+    receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    calendar:'<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/>'
+  };
+  function svg(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[k]||'')+'</svg>'; }
+  var P = '₱';
+  function fmt(n){ return (''+n).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+  function money(n){ var s=(+n).toFixed(2).split('.'); return fmt(s[0])+'.'+s[1]; }
+
+  var ITEM = {
+    "Americano":[145,33.6],"Flat White":[160,59.6],"Caffe Latte":[170,68.6],"Cappuccino":[180,65],
+    "Spanish Latte":[180,74.85],"Mocha":[180,73.6],"Sea Salt Caramel":[195,85.07],"Honey Cinnamon Oat":[195,75.43],
+    "Biscoff Latte":[260,101.67],"Matcha Latte":[200,116.94],"Strawberry Matcha":[200,114.2],"Sea Salt Matcha":[220,137.67],
+    "Dirty Matcha":[230,143.94],"Biscoff Matcha":[250,144.14],"Spam":[215,108],"Tapa":[205,110],"Bangsilog":[215,118],
+    "Corned Beef":[235,140],"Tuna Sandwich":[150,73],"Crispy Chicken Fillet":[195,78],"Ham and Cheese":[150,85],
+    "Ham and Egg":[150,85],"Double Cheese Burger":[195,93],"Chicken Burger":[225,88],"Alfredo Pasta":[280,138],
+    "Mojos":[180,95],"French Fries":[120,48],"Chicken Wings":[240,100],"Strawberry Shake":[170,79],
+    "Mango Shake":[160,58],"Chocolate Shake":[170,69],"Hungarian Silog":[215,115],"Tocino Silog":[195,95],
+    "Spaghetti w/ Meatballs":[230,113],"Beef Franks":[215,115],"Hotdog Silog":[180,60],
+    "Double Shot Espresso":[85,27],"Salted Banana Latte":[220,74.63],"Banana Bread Matcha":[230,122.33]
+  };
+  function computeReport(order){
+    var rows=[],ts=0,tc=0,tu=0;
+    order.forEach(function(o){ var it=ITEM[o[0]]; if(!it) return; var q=o[1], sales=it[0]*q, cg=it[1]*q; rows.push([o[0],q,sales,cg,sales-cg, sales?100*cg/sales:0]); ts+=sales; tc+=cg; tu+=q; });
+    rows.sort(function(a,b){ return b[2]-a[2]; });
+    return {rows:rows, sales:ts, cogs:tc, gross:ts-tc, fc: ts?100*tc/ts:0, units:tu};
+  }
+  var GROUP = {
+    "Americano":"cm","Flat White":"cm","Caffe Latte":"cm","Cappuccino":"cm","Spanish Latte":"cm","Mocha":"cm","Sea Salt Caramel":"cm","Honey Cinnamon Oat":"cm","Biscoff Latte":"cm","Double Shot Espresso":"cm",
+    "Matcha Latte":"cm","Strawberry Matcha":"cm","Sea Salt Matcha":"cm","Dirty Matcha":"cm","Biscoff Matcha":"cm",
+    "Salted Banana Latte":"cm","Banana Bread Matcha":"cm"
+  };
+  function groupCOGS(order){
+    var res={cm:{sales:0,cogs:0,units:0}, fs:{sales:0,cogs:0,units:0}};
+    order.forEach(function(o){ var it=ITEM[o[0]]; if(!it) return; var q=o[1], g=GROUP[o[0]]||'fs'; res[g].sales+=it[0]*q; res[g].cogs+=it[1]*q; res[g].units+=q; });
+    return res;
+  }
+
+  var RECIPE = {
+    "Americano":[["Coffee beans","18 g",27.00],["Water","200 g",1.00],["Cup","1 pc",5.60]],
+    "Flat White":[["Coffee beans","18 g",27.00],["Milk","150 g",27.00],["Cup","1 pc",5.60]],
+    "Caffe Latte":[["Coffee beans","18 g",27.00],["Milk","200 g",36.00],["Cup","1 pc",5.60]],
+    "Cappuccino":[["Coffee beans","18 g",27.00],["Milk","180 g",32.40],["Cup","1 pc",5.60]],
+    "Mocha":[["Coffee beans","18 g",27.00],["Milk","200 g",36.00],["Cup","1 pc",5.60],["Choco syrup","20 g",5.00]],
+    "Spanish Latte":[["Coffee beans","18 g",27.00],["Milk","200 g",36.00],["Cup","1 pc",5.60],["Condensed milk","25 g",6.25]],
+    "Honey Cinnamon Oat":[["Coffee beans","18 g",27.00],["Milk","200 g",36.00],["Cup","1 pc",5.60],["Honey","20 g",5.744],["Cinnamon","1/8 tsp",1.09]],
+    "Sea Salt Caramel":[["Coffee beans","18 g",27.00],["Milk","200 g",36.00],["Cup","1 pc",5.60],["Sea salt foam","40 g",11.472],["Caramel syrup","20 g",5.00]],
+    "Biscoff Latte":[["Coffee beans","18 g",27.00],["Milk","200 g",36.00],["Cup","1 pc",5.60],["Biscoff spread","25 g",22.9375],["Biscoff crackers","2 pcs",10.00],["Sea salt cream","20 g",5.736]],
+    "Matcha Latte":[["Matcha","5 g",75.00],["Milk","170 g",30.60],["Honey","20 g",5.744],["Cup","1 pc",5.60]],
+    "Strawberry Matcha":[["Matcha","5 g",75.00],["Milk","170 g",30.60],["Strawberry jam","30 g",3.00],["Cup","1 pc",5.60]],
+    "Sea Salt Matcha":[["Matcha (premium)","4 g",90.00],["Milk","170 g",30.60],["Sea salt foam","40 g",11.472],["Cup","1 pc",5.60]],
+    "Dirty Matcha":[["Matcha","5 g",75.00],["Milk","170 g",30.60],["Coffee beans","18 g",27.00],["Cup","1 pc",5.60],["Honey","20 g",5.744]],
+    "Biscoff Matcha":[["Matcha","5 g",75.00],["Milk","170 g",30.60],["Cup","1 pc",5.60],["Biscoff spread","25 g",22.9375],["Biscoff crackers","2 pcs",10.00]],
+    "Salted Banana Latte":[["Coffee beans","18 g",27.00],["Milk","170 g",30.60],["Cup","1 pc",5.60],["Banana bread syrup","30 g",4.26],["Sea salt foam","25 g",7.17]],
+    "Banana Bread Matcha":[["Matcha","5 g",75.00],["Milk","170 g",30.60],["Cup","1 pc",5.60],["Banana bread syrup","30 g",4.26],["Sea salt foam","25 g",7.17]]
+  };
+  Object.keys(RECIPE).forEach(function(nm){ if(ITEM[nm]){ var s=0; RECIPE[nm].forEach(function(l){ s+=l[2]; }); ITEM[nm][1]=Math.round(s*100)/100; } });
+  var INGREDIENTS = [
+    ["Coffee Beans","1,300","1,500","1.5/g","1 kg"],
+    ["Milk (dairy — ref)","90","100","0.13/g","~1 L ?"],
+    ["Oat Milk ★ used in drinks","150","180","0.18/g","1 L"],
+    ["All Purpose Cream","66","75","0.3125/g","240 g"],
+    ["Cinnamon Powder","71.50","—","~₱1.09/drink","? "],
+    ["Sugar (1 kilo)","90","—","0.09/g","1 kg"],
+    ["Matcha Powder (Nishide)","1,500","1,800","22.5/g","80 g"],
+    ["Matcha Powder (Nagomi)","2,550","3,000","15/g","200 g"],
+    ["Strawberry Jam (3kg)","300","—","0.1/g","3 kg"],
+    ["Sea Salt","65.50","—","0.291/g","225 g"],
+    ["Honey","439.50","—","0.287/g","?"],
+    ["Choco Syrup","245","—","0.25/g","?"],
+    ["Caramel Syrup","245","—","0.25/g","?"],
+    ["Condensed Milk","125","—","0.25/g","?"],
+    ["Biscoff Spread","550","—","0.9175/g","?"],
+    ["Biscoff Biscuit","—","—","₱5.00/pc","?"]
+  ];
+  // Ingredient usage rates (per gram / per piece) — same rates the recipes cost on
+  var INGDEF = [
+    ["Coffee beans","g",1.5],["Milk","g",0.18],["Matcha","g",15],["Matcha (premium)","g",22.5],
+    ["Honey","g",0.287],["Choco syrup","g",0.25],["Caramel syrup","g",0.25],["Condensed milk","g",0.25],
+    ["Strawberry jam","g",0.1],["Biscoff spread","g",0.9175],["Biscoff crackers","pc",5.0],
+    ["Cinnamon","g",3.35],["Cup","pc",5.6],["Sea salt foam","g",0.287],["Sea salt cream","g",0.287]
+  ];
+  var INGRATE={}; INGDEF.forEach(function(d){ INGRATE[d[0]]={unit:d[1],rate:d[2]}; });
+  var POSEXPORT = [
+    ["08:48 PM","0004612","WALK-IN","ICED HONEY CINNAMON","Honey Cinnamon Oat",1,"195.00"],
+    ["08:44 PM","0004610","WALK-IN","CRISPY CHICKEN FILLET","Crispy Chicken Fillet",1,"195.00"],
+    ["08:14 PM","0004608","SIR PHILIP","DOUBLE CHEESE BURGER","Double Cheese Burger",3,"585.00"],
+    ["08:02 PM","0004607","WALK-IN","ICED FLAT WHITE","Flat White",1,"160.00"],
+    ["07:50 PM","0004604","WALK-IN","FRIES","French Fries",1,"120.00"],
+    ["04:22 PM","0004592","WALK-IN","SPAMSILOG","Spam (Spamsilog)",1,"215.00"],
+    ["04:22 PM","0004592","WALK-IN","MOJOS","Mojos",1,"180.00"],
+    ["03:42 PM","0004591","WALK-IN","STRAWBERRY SHAKE","Strawberry Shake",1,"170.00"],
+    ["02:11 PM","0004587","WALK-IN","ICED SEA SALT CARAMEL","Sea Salt Caramel",1,"195.00"]
+  ];
+  var EXPENSES = [
+    ["Monthly","Salary","fixed","15,120","staff pay"],
+    ["Monthly","Rent","—","0","grace period"],
+    ["Monthly","Electricity","—","0","grace period"],
+    ["Monthly","Water","—","0","grace period"],
+    ["Monthly","Marketing / boosts","variable","5,000","sample — replace with actual"],
+    ["Monthly","Supplies / packaging","variable","600","sample — replace with actual"]
+  ];
+  var MATCHMAP = [
+    ["ICED HONEY CINNAMON","Honey Cinnamon Oat"],
+    ["CRISPY CHICKEN FILLET","Crispy Chicken Fillet"],
+    ["DOUBLE CHEESE BURGER","Double Cheese Burger"],
+    ["ICED FLAT WHITE","Flat White"],
+    ["FRIES","French Fries"],
+    ["SPAMSILOG","Spam"],
+    ["MOJOS","Mojos"],
+    ["STRAWBERRY SHAKE","Strawberry Shake"],
+    ["ICED SEA SALT CARAMEL","Sea Salt Caramel"]
+  ];
+  function inFilter(name){ return itemFilter==='all' || (GROUP[name]||'fs')===itemFilter; }
+  function filterOrder(order){ return order.filter(function(o){ return inFilter(o[0]); }); }
+
+  var BUS = {
+    ohllys:{
+      brand:"Ohlly's", tag:"analysis",
+      acct:{icon:"cup", name:"Ohlly's Cafe — Mabolo", sub:"East Labuan, Cebu City"},
+      tiles:[
+        {k:"Sales (Ohlly's items)", v:P+"2,015", s:"11 units · 23 Sep", dot:"d-blue"},
+        {k:"Gross profit", v:P+"1,107.90", s:"before opex", dot:"d-green", good:true},
+        {k:"COGS", v:P+"907.10", s:"from recipe costs", dot:"d-amber"},
+        {k:"Food cost", v:"45.0%", s:"target ≤ 35%", dot:"d-red"}
+      ],
+      reports:[],
+      dailyHist:[
+        {lbl:"Sep 3",day:"3",sales:1620,units:9},{lbl:"Sep 4",day:"4",sales:1890,units:10},{lbl:"Sep 5",day:"5",sales:2210,units:12},{lbl:"Sep 6",day:"6",sales:2540,units:14},{lbl:"Sep 7",day:"7",sales:1700,units:9},{lbl:"Sep 8",day:"8",sales:1480,units:8},{lbl:"Sep 9",day:"9",sales:1750,units:10},
+        {lbl:"Sep 10",day:"10",sales:1900,units:10},{lbl:"Sep 11",day:"11",sales:2050,units:11},{lbl:"Sep 12",day:"12",sales:2300,units:13},{lbl:"Sep 13",day:"13",sales:2600,units:15},{lbl:"Sep 14",day:"14",sales:1820,units:10},{lbl:"Sep 15",day:"15",sales:1560,units:8},{lbl:"Sep 16",day:"16",sales:1980,units:11},
+        {lbl:"Sep 17",day:"17",sales:1765,units:10},{lbl:"Sep 18",day:"18",sales:1765,units:10},{lbl:"Sep 19",day:"19",sales:1780,units:10},{lbl:"Sep 20",day:"20",sales:2435,units:13},{lbl:"Sep 21",day:"21",sales:1785,units:9},{lbl:"Sep 22",day:"22",sales:1695,units:10},{lbl:"Sep 23",day:"23",sales:2015,units:11,live:true}
+      ],
+      finance:{ salaryMonthly:15120, supplies:600, zeroLines:["Rent","Electricity","Water"] },
+      nav:[
+        {items:[
+          {icon:"bars", label:"Daily Sales Report", view:"report", title:"Daily Sales Report", desc:"One day at a time — what sold and what you earned. Search or tap a date."},
+          {icon:"calendar", label:"Monthly Sales Report", view:"monthly", title:"Monthly Sales Report", desc:"The whole month compiled — total qty, sales, COGS, gross and food-cost % per item, plus month totals."},
+          {icon:"receipt", label:"Expense Log", view:"expenselog", title:"Expense Log", desc:"Your operating expenses — rent, utilities, salary, supplies, marketing. Feeds the Overall Report."},
+          {icon:"wallet", label:"Overall Report", view:"overall", title:"Overall Report", desc:"Your finances at a glance — total sales, total expenses, and what's left with Ohlly's."}
+        ]},
+        {label:"Run the pipeline", items:[
+          {icon:"doc", label:"Data Sources", expand:true, title:"Data Sources", desc:"The two feeds the app reads. You maintain the notebook; the POS you just export.", children:[
+            {label:"Ingredient Prices & Costs", view:"ingredients", title:"Ingredient Prices & Costs", desc:"Your ingredient list with per-gram costs — the basis for every recipe cost."},
+            {label:"Recipes", view:"recipes", title:"Recipes", desc:"Every drink's ingredients and cost — these now cost each drink across all the reports."}
+          ]},
+          {icon:"link", label:"Cross-reference", expand:true, open:true, title:"Cross-reference", desc:"The engine: it joins the POS and your notebook by item name, then costs and reconciles.", children:[
+            {label:"Match Item Names", view:"matchnames", title:"Match Item Names", desc:"Line up each POS item name with your menu/recipe name — the join that makes everything automatic."},
+            {label:"Cost of Products", view:"costing", title:"Cost of Products", desc:"Every item's cost, price, gross and food-cost % — worst margin first."},
+            {label:"Ingredient Usage", view:"uselog", title:"Ingredient Usage", desc:"Log ingredients used outside of sales — prep, waste, staff, food. Auto-costs each entry and feeds Stock Used + Reorder."},
+            {label:"Stock Used + Reorder", view:"stock", title:"Stock Used + Reorder", desc:"Theoretical usage → what dropped below par and needs reordering."}
+          ]},
+          {icon:"money", label:"Money In", view:"moneyin", title:"Money In", desc:"The day's takings split by channel, net of fees, with cash-in-hand, receivables, and drawer reconciliation."}
+        ]},
+        {label:"Insights", items:[
+          {icon:"list", label:"Tally", view:"tally", title:"Tally", desc:"Units sold per item — top and bottom sellers, plus the Coffee & Matcha vs Food & Shakes mix."},
+          {icon:"wallet", label:"Cash Flow", view:"cash", title:"Cash Flow", desc:"Where the money is and what's safe to spend: cash free for ingredients vs left for Ohlly's."},
+          {icon:"money", label:"Usable Funds", view:"spare", title:"Usable Funds per Ingredient", desc:"Per ingredient, how much your sales have already set aside toward it — your budget to buy the next batch. Cost rate × amount used this month."}
+        ]}
+      ]
+    },
+
+    pyu:{
+      brand:"PYU", tag:"analysis",
+      acct:{icon:"truck", name:"PYU Micro Ventures", sub:"Bulk water delivery"},
+      period:"Sep 6–7, 2026",
+      asOf:12,
+      // sample slice of the real DR Record + Orders Listing — [date, customer, DR#, driver, helper, tons]
+      deliveries:[
+        ["Sep 6","LABOGON SUNRISER","111015","Roger","John",35],
+        ["Sep 6","MV JOYFUL STAR","111014","Roger","John",35],
+        ["Sep 6","PSWRI","18930","Roger","John",35],
+        ["Sep 6","PSWRI","18929","Roger","John",35],
+        ["Sep 6","ONE OASIS","110913","Felix","Jenel",16],
+        ["Sep 6","MV IMMACULATE STAR","110917","Felix","Jenel",16],
+        ["Sep 6","MV TRANS ASIA 21","110916","Felix","Jenel",16],
+        ["Sep 6","MV TRANS ASIA 21","110915","Felix","Jenel",16],
+        ["Sep 6","MV THERESIAN STAR","110999","Felix","Jenel",16],
+        ["Sep 6","ONE OASIS","110919","Ramie","Junril",20],
+        ["Sep 6","ONE OASIS","110910","Ramie","Junril",20],
+        ["Sep 6","ONE OASIS","110909","Ramie","Junril",20],
+        ["Sep 6","ONE OASIS","110908","Ramie","Junril",20],
+        ["Sep 7","PSWRI","18872","Rector","Peter",35],
+        ["Sep 7","PSWRI","18871","Rector","Peter",35],
+        ["Sep 7","CORE CONCRETE","111052","Rector","Peter",35],
+        ["Sep 7","CORE CONCRETE","111051","Rector","Peter",35],
+        ["Sep 7","MV GRACIOUS STAR","110923","Roque","Roldan",16],
+        ["Sep 7","MV FILIPINAS CAGAYAN","110941","Roque","Roldan",16],
+        ["Sep 7","MV FILIPINAS OZAMIS","110924","Roque","Roldan",16],
+        ["Sep 7","MV FILIPINAS OZAMIS","110929","Welmar","Mitchel",16],
+        ["Sep 7","ONE OASIS","110856","Welmar","Mitchel",16],
+        ["Sep 7","MV THERESIAN STAR","110928","Welmar","Mitchel",16],
+        ["Sep 7","MV TRANS ASIA 15","111018","Roger","John",35],
+        ["Sep 7","MV FILIPINAS OZAMIS","111017","Roger","John",35],
+        ["Sep 7","MV MASAGANA 2GO","111016","Roger","John",35]
+      ],
+      // ₱ per ton by customer (PLACEHOLDER — from the billing pattern; replace with real rates)
+      prices:{
+        "ONE OASIS":187.5,"MV TRANS ASIA 21":217.5,"MV TRANS ASIA 15":217.5,"MV MASAGANA 2GO":187.5,
+        "MV IMMACULATE STAR":190,"MV THERESIAN STAR":190,"MV JOYFUL STAR":190,"MV GRACIOUS STAR":190,
+        "MV FILIPINAS CAGAYAN":190,"MV FILIPINAS OZAMIS":190,"LABOGON SUNRISER":185,"PSWRI":175,"CORE CONCRETE":185.71
+      },
+      terms:{
+        "ONE OASIS":"15 DAYS","MV TRANS ASIA 21":"15 DAYS","MV TRANS ASIA 15":"15 DAYS","MV MASAGANA 2GO":"15 DAYS",
+        "MV IMMACULATE STAR":"15 DAYS","MV THERESIAN STAR":"15 DAYS","MV JOYFUL STAR":"15 DAYS","MV GRACIOUS STAR":"15 DAYS",
+        "MV FILIPINAS CAGAYAN":"15 DAYS","MV FILIPINAS OZAMIS":"15 DAYS","LABOGON SUNRISER":"15 DAYS","PSWRI":"15 DAYS","CORE CONCRETE":"15 DAYS"
+      },
+      salary:{ driver:200, helper:150 },
+      expenses:[["Sep 6","Diesel — all trucks","Fuel","9,800"],["Sep 7","Truck maintenance","Maintenance","3,500"],["Sep 7","Tarps & misc","Supplies","900"]],
+      nav:[
+        {items:[
+          {icon:"truck", label:"Delivery Records", view:"pyu_intake", title:"Delivery Records", desc:"Drop your DR Record and Orders Listing — every screen below is derived from them."},
+          {icon:"bars", label:"Sales Report", view:"pyu_sales", title:"Sales Report", desc:"Deliveries, tons and revenue — revenue is each customer's ₱/ton × tons delivered."},
+          {icon:"wallet", label:"Overall Report", view:"pyu_overall", title:"Overall Report", desc:"Sales − crew salary − expenses = what's left with PYU."}
+        ]},
+        {label:"Analysis", items:[
+          {icon:"list", label:"Customers", view:"pyu_customers", title:"Customers", desc:"Your customer directory — each company with its ₱/ton (or per-truckload) rate and the units/vessels you deliver to. Add and edit anytime."},
+          {icon:"receipt", label:"Statements", view:"pyu_statements", title:"Customer Statements", desc:"One statement per credit customer — total due, editable schedule + deadline, overdue flag, Pending / Paid."},
+          {icon:"wallet", label:"Payments Received", view:"pyu_payments", title:"Payments Received", desc:"Actual cash collected — every statement/cheque you've marked paid."},
+          {icon:"truck", label:"Crew Salary", view:"pyu_salary", title:"Crew Salary", desc:"Per person — deliveries and tons hauled, costed at editable driver / helper rates."}
+        ]},
+        {label:"Master & costs", items:[
+          {icon:"receipt", label:"Expense Log", view:"pyu_expenses", title:"Expense Log", desc:"Fuel, maintenance and overhead — the cash-out side, editable per period."},
+          {icon:"money", label:"Cheques Issued", view:"pyu_cheques", title:"Cheques Issued", desc:"Cheques you've given out to suppliers and creditors — payees, amounts, due dates and cleared status. Your payables."}
+        ]}
+      ]
+    }
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+  var navRoot=$('navRoot'), reg={}, uid=0;
+  var current='ohllys', selDate=null, weekView=null, itemFilter='all', curIt=null;
+
+  // ---- Persistence: Supabase (per-business, live-synced), localStorage as an instant cache.
+  //      Reads stay synchronous against an in-memory mirror; writes fan out to Supabase. ----
+  var _ls=null; try{ _ls=window.localStorage; }catch(e){ _ls=null; }
+  var MEM={}, WQ={}, SB=null, SESSION=null, BIZ=[];
+  function bizOf(k){ return (k.indexOf('pyu_')===0) ? 'pyu' : 'ohllys'; }
+  function dbWrite(k){
+    if(!SB || !SESSION) return;
+    var st=WQ[k]; if(!st){ st=WQ[k]={has:false,inflight:false,val:null}; }
+    st.val=MEM[k]; st.has=true;
+    if(st.inflight) return;
+    (function flush(){
+      if(!st.has){ st.inflight=false; return; }
+      var val=st.val; st.has=false; st.inflight=true;
+      var done=function(){ st.inflight=false; if(st.has) flush(); };
+      try{
+        SB.from('app_data').upsert({business:bizOf(k), key:k, value:{v:val}, updated_at:new Date().toISOString()}, {onConflict:'business,key'}).then(done, done);
+      }catch(e){ st.inflight=false; }
+    })();
+  }
+  var LS={
+    get:function(k){ if(Object.prototype.hasOwnProperty.call(MEM,k)) return MEM[k]; try{ return _ls?_ls.getItem(k):null; }catch(e){ return null; } },
+    set:function(k,v){ MEM[k]=v; try{ if(_ls) _ls.setItem(k,v); }catch(e){} dbWrite(k); }
+  };
+  function applyRow(key, value){
+    var v = value && value.v;
+    if(typeof v==='string' && MEM[key]!==v){ MEM[key]=v; try{ if(_ls) _ls.setItem(key,v); }catch(e){} return true; }
+    return false;
+  }
+  function loadAllData(){
+    return SB.from('app_data').select('key,value').then(function(res){
+      var rows=(res && res.data)||[];
+      rows.forEach(function(r){ applyRow(r.key, r.value); });
+    }, function(){});
+  }
+  function subscribeRealtime(){
+    try{
+      SB.channel('app_data_rt').on('postgres_changes', {event:'*', schema:'public', table:'app_data'}, function(payload){
+        var row = payload['new'] || payload.old; if(!row || !row.key) return;
+        var changed=false;
+        if(payload.eventType==='DELETE'){ if(Object.prototype.hasOwnProperty.call(MEM,row.key)){ delete MEM[row.key]; try{ if(_ls) _ls.removeItem(row.key); }catch(e){} changed=true; } }
+        else { changed = applyRow(row.key, row.value); }
+        if(changed){ if(typeof rebuildReports==='function') rebuildReports(); if(curIt && typeof showView==='function') showView(curIt); }
+      }).subscribe();
+    }catch(e){}
+  }
+  function initDB(){}  // no-op (auth + loading handled in boot)
+  function showFilter(){
+    var fb=$('filterBar'); fb.hidden=false;
+    function seg(v,l){ return '<button class="segbtn'+(itemFilter===v?' active':'')+'" data-f="'+v+'">'+l+'</button>'; }
+    fb.innerHTML='<div class="segbar">'+seg('all','All')+seg('cm','Drinks')+seg('fs','Food')+'</div>';
+    Array.prototype.forEach.call(fb.querySelectorAll('[data-f]'), function(b){ b.addEventListener('click', function(){ itemFilter=b.getAttribute('data-f'); showView(curIt); }); });
+  }
+  function reportMonthOf(r){ if(r.m) return r.m; var d=(''+r.d), ym=d.match(/(19|20)\d\d/); var mo=(d.match(/[A-Za-z]{3}/)||[''])[0]; return mo + (ym?(' '+ym[0]):''); }
+  function reportsForMonth(m){ var reps=BUS.ohllys.reports||[]; return reps.filter(function(r){ var rm=reportMonthOf(r); return rm===m || rm===(''+m).slice(0,3); }); }
+
+  // ---- POS export import: reads a "Category Sold" .htm and auto-fills the day's sales ----
+  var BAKED_OHLLYS = BUS.ohllys.reports;   // the original baked reports; imports layer on top
+  var UP_INDEX={}; Object.keys(ITEM).forEach(function(k){ UP_INDEX[k.toUpperCase().replace(/\s+/g,' ').trim()]=k; });
+  // POS item name (normalized, uppercase, no HOT/ICED, no parentheticals) -> menu item
+  var POS_ALIAS_DEFAULT={
+    "CAFE LATTE":"Caffe Latte",
+    "CLASSIC MATCHA LATTE":"Matcha Latte",
+    "SEA SALT FOAM":"Sea Salt Matcha",
+    "SPAMSILOG":"Spam",
+    "TAPA SILOG":"Tapa",
+    "CORNED BEEF SILOG":"Corned Beef",
+    "SPAGHETTI WITH MEATBALLS":"Spaghetti w/ Meatballs",
+    "BACON PASTA ALFREDO":"Alfredo Pasta",
+    "FRIES":"French Fries"
+  };
+  function posAliasMap(){ var a={},k; for(k in POS_ALIAS_DEFAULT) a[k]=POS_ALIAS_DEFAULT[k]; try{ var s=JSON.parse(LS.get('ohlly_pos_alias')||'null'); if(s&&typeof s==='object'){ for(k in s) a[k]=s[k]; } }catch(e){} return a; }
+  function normPos(name){ var s=(''+name).toUpperCase().replace(/\s+/g,' ').trim(); s=s.replace(/^(HOT|ICED|COLD)\s+/,''); s=s.replace(/\s*\([^)]*\)/g,''); return s.replace(/\s+/g,' ').trim(); }
+  function mapPosItem(pos){ var s=normPos(pos); var A=posAliasMap(); if(A[s]) return A[s]; if(UP_INDEX[s]) return UP_INDEX[s]; return null; }
+
+  function getImported(){ try{ var s=JSON.parse(LS.get('ohlly_imported')||'null'); if(s&&typeof s==='object') return s; }catch(e){} return {}; }
+  function saveImported(o){ LS.set('ohlly_imported', JSON.stringify(o)); }
+  function orderToMap(order){ var m={}; order.forEach(function(o){ m[o[0]]=(m[o[0]]||0)+o[1]; }); return m; }
+  function repDateKey(r){ var mo=reportMonthOf(r); var mm=(mo.match(/[A-Za-z]{3}/)||[''])[0]; var yy=(mo.match(/(19|20)\d\d/)||['2026'])[0]; var mi=MONTHS.indexOf(mm); if(mi<0)mi=0; var dayM=(''+r.d).match(/\b(\d{1,2})\b/); var day=dayM?parseInt(dayM[1],10):0; return parseInt(yy,10)*10000+mi*100+day; }
+  function rebuildReports(){
+    var imp=getImported(), byDate={}, k;
+    BAKED_OHLLYS.forEach(function(r){ byDate[r.d]={d:r.d,m:r.m,live:r.live,imported:false,order:orderToMap(r.order)}; });
+    Object.keys(imp).forEach(function(d){ var rec=imp[d]; if(!rec||!rec.o) return;
+      if(!byDate[d]) byDate[d]={d:d,m:rec.m||reportMonthOf({d:d}),live:true,imported:true,order:{}};
+      byDate[d].imported=true; if(rec.m) byDate[d].m=rec.m;
+      for(k in rec.o) byDate[d].order[k]=rec.o[k];
+    });
+    var arr=Object.keys(byDate).map(function(d){ var o=byDate[d], ord=[], kk; for(kk in o.order) ord.push([kk,o.order[kk]]); return {d:o.d,m:o.m,live:o.live,imported:o.imported,order:ord}; });
+    arr.sort(function(a,b){ return repDateKey(a)-repDateKey(b); });
+    BUS.ohllys.reports=arr;
+  }
+
+  function parsePOS(text){
+    var doc; try{ doc=new DOMParser().parseFromString(text,'text/html'); }catch(e){ doc=null; }
+    if(!doc||!doc.body) return {ok:false, err:'could not read the file'};
+    var bodyText=doc.body.textContent.replace(/\s+/g,' ');
+    var monthM=bodyText.match(/Month\s*(\d{1,2})/i);
+    var dayM=text.match(/(\d{2})\/(\d{2})\/(\d{4})/);                 // sale date MM/DD/YYYY
+    var printY=text.match(/(\d{2})\/(\d{2})\/(\d{2})\s+\d{1,2}:\d{2}/); // printed MM/DD/YY
+    var d,m;
+    if(dayM){ var mo=parseInt(dayM[1],10), da=parseInt(dayM[2],10), yr=parseInt(dayM[3],10); var mi=(mo-1+12)%12; d=MONTHS[mi]+' '+da; m=MONTHS[mi]+' '+yr; }
+    else if(monthM){ var mn=parseInt(monthM[1],10), mi2=(mn-1+12)%12; var yr2=printY?2000+parseInt(printY[3],10):2026; d=MONTHS[mi2]+' '+yr2; m=d; }
+    else return {ok:false, err:'no date found — is this a Category Sold export?'};
+    var rows=[], trs=doc.getElementsByTagName('tr');
+    for(var i=0;i<trs.length;i++){
+      var tds=trs[i].getElementsByTagName('td'), cells=[];
+      for(var j=0;j<tds.length;j++){ var t=(tds[j].textContent||'').replace(/\s+/g,' ').trim(); if(t) cells.push(t); }
+      if(cells.length<4) continue;
+      if(!/^\d{5,6}[a-zA-Z]?$/.test(cells[0])) continue;      // barcode marks a data row
+      var pcs=-1; for(var p=0;p<cells.length;p++){ if(/^PCS$/i.test(cells[p])){ pcs=p; break; } }
+      if(pcs<2) continue;
+      var nm=cells[1], qty=parseFloat((cells[pcs-1]||'').replace(/,/g,''))||0;
+      if(nm && qty>0) rows.push({pos:nm, qty:qty});
+    }
+    return {ok:true, d:d, m:m, rows:rows};
+  }
+
+  function importPOSText(text){
+    var parsed=parsePOS(text);
+    if(!parsed.ok) return {ok:false, err:parsed.err};
+    if(!parsed.rows.length) return {ok:false, err:'no sales rows found in this file'};
+    var matched={}, unmatched=[], mUnits=0, k;
+    parsed.rows.forEach(function(r){ var c=mapPosItem(r.pos); if(c){ matched[c]=(matched[c]||0)+r.qty; mUnits+=r.qty; } else unmatched.push([r.pos,r.qty]); });
+    var imp=getImported(); if(!imp[parsed.d]) imp[parsed.d]={m:parsed.m,o:{}}; imp[parsed.d].m=parsed.m;
+    for(k in matched) imp[parsed.d].o[k]=matched[k];
+    saveImported(imp); rebuildReports();
+    selDate=parsed.d;
+    return {ok:true, d:parsed.d, m:parsed.m, matched:Object.keys(matched).length, units:mUnits, unmatched:unmatched};
+  }
+  function importSummaryHTML(res, fname){
+    if(!res||!res.ok) return '<div class="upempty" style="border-left:3px solid var(--red)">Couldn’t import <b>'+(fname||'file')+'</b> — '+((res&&res.err)||'unknown error')+'. It should be a POS “Category Sold” export (.htm).</div>';
+    var h='<div class="upempty" style="border-left:3px solid var(--good)"><b>Imported '+res.d+'</b> — '+res.matched+' item(s), '+res.units+' units folded in.';
+    if(res.unmatched&&res.unmatched.length) h+='<br><span style="color:var(--amber)">Not on the menu, skipped: '+res.unmatched.map(function(u){return u[0]+' ×'+u[1];}).join(', ')+'. Tell me and I’ll add them.</span>';
+    h+='</div>'; return h;
+  }
+  function wireImport(){
+    var fi=$('fileInput'), ab=$('addFileBtn'); if(!fi||!ab) return;
+    ab.addEventListener('click', function(){ fi.click(); });
+    fi.addEventListener('change', function(){ var f=fi.files&&fi.files[0]; if(!f) return;
+      var rd=new FileReader();
+      rd.onload=function(){ var res; try{ res=importPOSText(''+rd.result); }catch(e){ res={ok:false,err:(e&&e.message)||'parse error'}; }
+        showView(curIt); var ul=$('upList'); if(ul) ul.innerHTML=importSummaryHTML(res,f.name); fi.value=''; };
+      rd.readAsText(f);
+    });
+  }
+  function monthBar(){
+    var month=monthLabel(monthOffset);
+    $('dateBar').hidden=false;
+    $('dateBar').innerHTML='<div class="weeknav"><button class="wbtn" id="mPrev">‹ Prev month</button><span class="wlabel" id="mLabel">'+month+(monthOffset===0?' · current':'')+'</span><button class="wbtn" id="mNext">Next month ›</button></div>';
+    $('mPrev').addEventListener('click', function(){ monthOffset--; showView(curIt); });
+    $('mNext').addEventListener('click', function(){ monthOffset++; showView(curIt); });
+    return month;
+  }
+  function wireUploader(key, emptyText){
+    var upList=$('upList'), fileInput=$('fileInput');
+    function load(){ try{ return JSON.parse(LS.get(key)||'[]'); }catch(e){ return []; } }
+    function save(a){ try{ LS.set(key, JSON.stringify(a)); }catch(e){} }
+    function render(){
+      var a=load();
+      if(!a.length){ upList.innerHTML = emptyText ? '<div class="upempty">'+emptyText+'</div>' : ''; return; }
+      var html=''; a.forEach(function(f,i){ html+='<div class="upitem"><span class="fn">'+f.name+'</span><span class="st">'+f.status+'</span><button class="rm" data-i="'+i+'" title="Remove">&times;</button></div>'; });
+      upList.innerHTML=html;
+      Array.prototype.forEach.call(upList.querySelectorAll('.rm'), function(b){ b.addEventListener('click', function(){ var a=load(); a.splice(+b.getAttribute('data-i'),1); save(a); render(); }); });
+    }
+    $('addFileBtn').addEventListener('click', function(){ fileInput.click(); });
+    fileInput.addEventListener('change', function(){ if(fileInput.files && fileInput.files[0]){ var a=load(); a.unshift({name:fileInput.files[0].name, status:'queued'}); save(a); render(); fileInput.value=''; } });
+    render();
+  }
+  function mountUploader(el, key, label, emptyText){
+    el.hidden=false;
+    el.innerHTML='<div class="uprow"><span class="uplabel">'+label+'</span><button class="upbtn" id="addFileBtn">+ Add file</button></div><input type="file" id="fileInput" accept=".csv,.htm,.html,.xls,.xlsx,.pdf,.png,.jpg" hidden><div class="uplist" id="upList"></div>';
+    wireUploader(key, emptyText);
+  }
+
+  var DEFAULT_EXPENSES=[
+    ["Sep 20","Facebook / TikTok boost","Marketing","1,200"],
+    ["Sep 22","Cups & packaging","Supplies","900"],
+    ["Sep 23","Staff pay (weekly share)","Salary","3,528"]
+  ];
+  var NEW_MONTH_TEMPLATE=[["","Salary","Salary","15,120"],["","Rent","—","0"],["","Electricity","—","0"],["","Water","—","0"]];
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var _NOWBASE=(function(){ var d=new Date(); return d.getFullYear()*12 + d.getMonth(); })();
+  function monthLabel(off){ var t=_NOWBASE+off, y=Math.floor(t/12), m=((t%12)+12)%12; return MONTHS[m]+' '+y; }
+  var SALES_MONTH=monthLabel(0);
+  var monthOffset=0;
+  function esc(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function seedExpenses(month){ return (month===SALES_MONTH ? DEFAULT_EXPENSES : NEW_MONTH_TEMPLATE).map(function(r){ return r.slice(); }); }
+  function getExpenses(month){ try{ var all=JSON.parse(LS.get('ohlly_expenses')||'{}'); if(all && !Array.isArray(all) && all[month]) return all[month]; }catch(e){} return seedExpenses(month); }
+  function saveExpenses(month, rows){ try{ var all={}; try{ var p=JSON.parse(LS.get('ohlly_expenses')||'{}'); if(p && !Array.isArray(p)) all=p; }catch(e){} all[month]=rows; LS.set('ohlly_expenses', JSON.stringify(all)); }catch(e){} }
+  function expTotal(rows){ var t=0; rows.forEach(function(r){ t+=parseFloat((''+r[3]).replace(/,/g,''))||0; }); return t; }
+  function exRow(r,i){ return '<tr data-i="'+i+'"><td><input class="exin" value="'+esc(r[0])+'"></td><td><input class="exin" value="'+esc(r[1])+'"></td><td><input class="exin" value="'+esc(r[2])+'"></td><td><input class="exin exn" value="'+esc(r[3])+'"></td><td><button class="exdel" title="Delete row">&times;</button></td></tr>'; }
+  function wireExpense(){
+    var body=$('exBody');
+    function collect(){ var rows=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var c=tr.querySelectorAll('.exin'); rows.push([c[0].value,c[1].value,c[2].value,c[3].value]); }); return rows; }
+    Array.prototype.forEach.call(body.querySelectorAll('.exin'), function(inp){ inp.addEventListener('input', function(){ var rows=collect(); saveExpenses(monthLabel(monthOffset), rows); var te=$('exTotal'); if(te) te.innerHTML=P+money(expTotal(rows)); }); });
+    Array.prototype.forEach.call(body.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=collect(); var tr=b.closest('tr[data-i]'); rows.splice(+tr.getAttribute('data-i'),1); saveExpenses(monthLabel(monthOffset), rows); renderExpenseLog(); }); });
+    $('addRowBtn').addEventListener('click', function(){ var rows=collect(); rows.push(["","","","0"]); saveExpenses(monthLabel(monthOffset), rows); renderExpenseLog(); });
+  }
+  function daySales(date){ var reps=BUS.ohllys.reports; if(!reps) return 0; var r=null; reps.forEach(function(x){ if(x.d===date) r=x; }); return r?computeReport(r.order).sales:0; }
+  function defaultMoneyIn(date){ var S=Math.round(daySales(date)); var cash=Math.round(S*0.45), card=Math.round(S*0.2), gc=Math.round(S*0.25), fp=Math.max(0,S-cash-card-gc); return { rows:[["Cash",cash,0],["Card",card,2.5],["GCash / Maya",gc,0],["Foodpanda",fp,28.5]], counted:cash }; }
+  function getMoneyIn(date){ try{ var all=JSON.parse(LS.get('ohlly_moneyin')||'{}'); if(all[date]) return all[date]; }catch(e){} return defaultMoneyIn(date); }
+  function saveMoneyIn(date,d){ try{ var all={}; try{ all=JSON.parse(LS.get('ohlly_moneyin')||'{}'); }catch(e){} all[date]=d; LS.set('ohlly_moneyin', JSON.stringify(all)); }catch(e){} }
+  function collectMoneyIn(){
+    var rows=[]; Array.prototype.forEach.call($('miBody').querySelectorAll('tr[data-i]'), function(tr){
+      var name=tr.children[0].textContent, ins=tr.querySelectorAll('.miin');
+      rows.push([name, parseFloat((ins[0].value||'0').replace(/,/g,''))||0, parseFloat((ins[1].value||'0').replace(/,/g,''))||0]);
+    });
+    return { rows:rows, counted: parseFloat(($('miCounted').value||'0').replace(/,/g,''))||0 };
+  }
+  function miCompute(){
+    var d=collectMoneyIn(), tg=0,tf=0,tn=0,cash=0,recv=0,cashGross=0;
+    d.rows.forEach(function(r,i){
+      var g=r[1], p=r[2], fee=g*p/100, net=g-fee, isCash=r[0].trim().toLowerCase()==='cash';
+      tg+=g; tf+=fee; tn+=net; if(isCash){ cash+=net; cashGross+=g; } else recv+=net;
+      var fe=$('miFee'+i), ne=$('miNetR'+i); if(fe) fe.innerHTML=P+money(fee); if(ne) ne.innerHTML=P+money(net);
+    });
+    $('miTG').innerHTML=P+money(tg); $('miTF').innerHTML=P+money(tf); $('miTN').innerHTML=P+money(tn);
+    $('miGross').innerHTML=P+money(tg); $('miNet').innerHTML=P+money(tn); $('miCash').innerHTML=P+money(cash); $('miRecv').innerHTML=P+money(recv);
+    $('miExp').innerHTML=P+money(cashGross);
+    var os=d.counted-cashGross, el=$('miOS'); if(el){ el.innerHTML=(os<0?'−':'+')+P+money(Math.abs(os)); el.style.color = Math.abs(os)<0.005?'var(--good)':(os<0?'var(--red)':'var(--amber)'); }
+    var S=daySales(selDate), diff=tg-S, mi=$('miInfo');
+    if(mi) mi.innerHTML='Day’s sales from the report: <b>'+P+money(S)+'</b> · '+(Math.abs(diff)<0.5?'<span style="color:var(--good)">split matches</span>':'<span style="color:var(--amber)">split off by '+P+money(Math.abs(diff))+'</span>');
+  }
+  function wireMoneyIn(){
+    function onChange(){ miCompute(); saveMoneyIn(selDate, collectMoneyIn()); }
+    Array.prototype.forEach.call($('miBody').querySelectorAll('.miin'), function(inp){ inp.addEventListener('input', onChange); });
+    var c=$('miCounted'); if(c) c.addEventListener('input', onChange);
+  }
+  function renderMoneyIn(){
+    var bus=BUS.ohllys, dates=bus.reports.map(function(r){return r.d;});
+    if(!bus.reports.length){
+      $('dateBar').hidden=true; $('tileGrid').innerHTML='';
+      $('reportTable').innerHTML='<div class="upempty" style="margin-top:8px">No days loaded yet. Import a day on the <b>Daily Sales Report</b> first, then come here to split that day’s takings into Cash / GCash / Card.</div>';
+      $('reportTable').hidden=false;
+      $('tileNote').innerHTML='Money In works per day — add a day first.';
+      return;
+    }
+    if(dates.indexOf(selDate)<0) selDate=bus.reports[bus.reports.length-1].d;
+    $('dateBar').hidden=false;
+    $('dateBar').innerHTML='<div class="datectl"><input id="dateSearch" class="datesearch" type="search" placeholder="Search date… (e.g. 20, Sat)" autocomplete="off"><div class="datelist" id="dateList"></div></div>';
+    var dl=$('dateList'), chips='';
+    for(var i=bus.reports.length-1;i>=0;i--){ var rr=bus.reports[i]; chips+='<button class="datechip'+(rr.d===selDate?' active':'')+'" data-d="'+rr.d+'">'+rr.d+(rr.live?' <span class="livedot">live</span>':'')+'</button>'; }
+    dl.innerHTML=chips;
+    $('dateSearch').addEventListener('input', function(){ var q=this.value.toLowerCase(); Array.prototype.forEach.call(dl.children,function(c){ c.hidden=c.getAttribute('data-d').toLowerCase().indexOf(q)<0; }); });
+    dl.addEventListener('click', function(e){ var c=e.target.closest('[data-d]'); if(!c) return; selDate=c.getAttribute('data-d'); renderMoneyIn(); });
+    var d=getMoneyIn(selDate);
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Collected (gross)</div><div class="v" id="miGross">—</div><div class="s">'+selDate+'</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Net after fees</div><div class="v" id="miNet">—</div><div class="s">what you keep</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Cash in hand</div><div class="v" id="miCash">—</div><div class="s">yours now</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Owed to you</div><div class="v" id="miRecv">—</div><div class="s">card / online / FP</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div id="miInfo" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px"></div>';
+    h+='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Payment split — '+selDate+' (type the POS totals)</span></div>';
+    h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Channel</th><th class="n">Gross</th><th class="n">Fee %</th><th class="n">Fee</th><th class="n">Net</th></tr></thead><tbody id="miBody">';
+    d.rows.forEach(function(r,i){ h+='<tr data-i="'+i+'"><td>'+r[0]+'</td><td><input class="exin exn miin" value="'+r[1]+'"></td><td><input class="exin exn miin" value="'+r[2]+'"></td><td class="n" id="miFee'+i+'">—</td><td class="n" id="miNetR'+i+'">—</td></tr>'; });
+    h+='<tr class="tot"><td>Total</td><td class="n" id="miTG">—</td><td></td><td class="n" id="miTF">—</td><td class="n" id="miTN">—</td></tr>';
+    h+='</tbody></table></div>';
+    h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Reconcile drawer</h3>';
+    h+='<div class="rtwrap"><table class="rt"><tbody>';
+    h+='<tr><td>Expected cash</td><td class="n" id="miExp">—</td></tr>';
+    h+='<tr><td>Counted cash</td><td class="n"><input class="exin exn" id="miCounted" value="'+d.counted+'"></td></tr>';
+    h+='<tr class="tot"><td>Over / Short</td><td class="n" id="miOS">—</td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    wireMoneyIn(); miCompute();
+    $('tileNote').innerHTML='Pick a date above (same as the Daily Sales Report). Each day’s split defaults to that day’s sales — type the real POS totals per channel. GCash/Maya has no fee; set Card and Foodpanda % when you have them.';
+  }
+  function renderExpenseLog(){
+    var month=monthBar();
+    var rows=getExpenses(month), total=expTotal(rows);
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Total expenses</div><div class="v">'+P+money(total)+'</div><div class="s">'+month+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Entries</div><div class="v">'+rows.length+'</div><div class="s">rows</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Rent + utilities</div><div class="v">'+P+'0</div><div class="s">grace period</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">'+month+' — type to edit</span><button class="upbtn" id="addRowBtn">+ Add row</button></div>';
+    h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Date</th><th>Expense</th><th>Quantity</th><th class="n">Amount</th><th></th></tr></thead><tbody id="exBody">';
+    rows.forEach(function(r,i){ h+=exRow(r,i); });
+    h+='<tr class="tot"><td colspan="3">Total</td><td class="n" id="exTotal">'+P+money(total)+'</td><td></td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    wireExpense();
+    $('tileNote').innerHTML='Switch months with <b>Prev / Next month</b> — each month keeps its own sheet, and new months start fresh from a template. Type to edit; add rows with <b>+ Add row</b>. The <b>'+SALES_MONTH+'</b> sheet feeds the current Overall Report. Keep ingredient purchases out of here (counted as COGS).';
+  }
+  var DEFAULT_USE=[];
+  function getUse(month){ try{ var all=JSON.parse(LS.get('ohlly_ingredient_use')||'{}'); if(all && !Array.isArray(all) && all[month]) return all[month]; }catch(e){} return (month===SALES_MONTH ? DEFAULT_USE.map(function(r){return r.slice();}) : []); }
+  function saveUse(month, rows){ try{ var all={}; try{ var p=JSON.parse(LS.get('ohlly_ingredient_use')||'{}'); if(p && !Array.isArray(p)) all=p; }catch(e){} all[month]=rows; LS.set('ohlly_ingredient_use', JSON.stringify(all)); }catch(e){} }
+  function useCost(r){ var d=INGRATE[r[0]]; var amt=parseFloat((''+r[1]).replace(/,/g,''))||0; return d?amt*d.rate:0; }
+  function useTotal(rows){ var t=0; rows.forEach(function(r){ t+=useCost(r); }); return t; }
+  function ingSelect(sel){ var o='<option value=""'+(sel?'':' selected')+'>— pick —</option>'; INGDEF.forEach(function(d){ o+='<option value="'+d[0]+'"'+(d[0]===sel?' selected':'')+'>'+d[0]+'</option>'; }); return o; }
+  function useRow(r,i){ var d=INGRATE[r[0]]; var unit=d?d.unit:''; return '<tr data-i="'+i+'"><td><select class="exin usesel">'+ingSelect(r[0])+'</select></td><td><input class="exin exn useamt" value="'+esc(r[1])+'"></td><td class="n useunit">'+unit+'</td><td class="n usecost">'+P+money(useCost(r))+'</td><td><input class="exin usenote" value="'+esc(r[2]||'')+'"></td><td><button class="exdel" title="Delete row">&times;</button></td></tr>'; }
+  function renderUseLog(){
+    var month=monthBar();
+    var rows=getUse(month), total=useTotal(rows);
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Cost of usage</div><div class="v">'+P+money(total)+'</div><div class="s">'+month+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Entries</div><div class="v">'+rows.length+'</div><div class="s">rows logged</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Feeds</div><div class="v" style="font-size:16px">Stock + Reorder</div><div class="s">adds to “used”</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">'+month+' — log what you used, cost fills in</span><button class="upbtn" id="addUseBtn">+ Add row</button></div>';
+    h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Ingredient</th><th class="n">Amount</th><th class="n">Unit</th><th class="n">Cost</th><th>Note</th><th></th></tr></thead><tbody id="useBody">';
+    rows.forEach(function(r,i){ h+=useRow(r,i); });
+    h+='<tr class="tot"><td colspan="3">Total cost of ingredients used</td><td class="n" id="useTotal">'+P+money(total)+'</td><td></td><td></td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    wireUse();
+    $('tileNote').innerHTML='For ingredients used <b>outside of drink sales</b> — prep batches, waste, staff drinks, or food. Pick an ingredient and type how much; the <b>cost auto-fills</b> at that ingredient’s rate. Each amount is <b>added to “Used” in Stock Used + Reorder</b>, so remaining stock and reorder flags stay honest. Switch months with Prev / Next month.';
+  }
+  function wireUse(){
+    var body=$('useBody');
+    function collect(){ var rows=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var s=tr.querySelector('.usesel'), a=tr.querySelector('.useamt'), n=tr.querySelector('.usenote'); rows.push([s.value, a.value, n?n.value:'']); }); return rows; }
+    function refresh(){ var rows=collect(); saveUse(monthLabel(monthOffset), rows);
+      Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var s=tr.querySelector('.usesel'), a=tr.querySelector('.useamt'); var d=INGRATE[s.value]; var amt=parseFloat((''+a.value).replace(/,/g,''))||0; tr.querySelector('.useunit').textContent=d?d.unit:''; tr.querySelector('.usecost').textContent=P+money(d?amt*d.rate:0); });
+      var te=$('useTotal'); if(te) te.innerHTML=P+money(useTotal(rows));
+    }
+    Array.prototype.forEach.call(body.querySelectorAll('.useamt'), function(inp){ inp.addEventListener('input', refresh); });
+    Array.prototype.forEach.call(body.querySelectorAll('.usenote'), function(inp){ inp.addEventListener('input', function(){ saveUse(monthLabel(monthOffset), collect()); }); });
+    Array.prototype.forEach.call(body.querySelectorAll('.usesel'), function(sel){ sel.addEventListener('change', refresh); });
+    Array.prototype.forEach.call(body.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=collect(); var tr=b.closest('tr[data-i]'); rows.splice(+tr.getAttribute('data-i'),1); saveUse(monthLabel(monthOffset), rows); renderUseLog(); }); });
+    $('addUseBtn').addEventListener('click', function(){ var rows=collect(); rows.push(["","0",""]); saveUse(monthLabel(monthOffset), rows); renderUseLog(); });
+  }
+
+  function renderNav(bus){
+    reg={}; uid=0;
+    var html='';
+    bus.nav.forEach(function(sec){
+      if(sec.label) html+='<div class="seclabel">'+sec.label+'</div>';
+      sec.items.forEach(function(it){
+        var id='n'+(uid++); reg[id]=it;
+        if(it.children){
+          var gid='g'+(uid++);
+          html+='<button class="navitem" data-id="'+id+'" data-group="'+gid+'" aria-expanded="'+(it.open?'true':'false')+'">'+svg(it.icon)+'<span class="lbl">'+it.label+'</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></button>';
+          html+='<div class="children '+(it.open?'open':'')+'" id="'+gid+'"><div>';
+          it.children.forEach(function(ch){ var cid='n'+(uid++); reg[cid]=ch; html+='<button class="subitem" data-id="'+cid+'">'+ch.label+'</button>'; });
+          html+='</div></div>';
+        } else {
+          html+='<button class="navitem" data-id="'+id+'">'+svg(it.icon)+'<span class="lbl">'+it.label+'</span></button>';
+        }
+      });
+    });
+    navRoot.innerHTML=html;
+  }
+
+  function setActive(el){
+    Array.prototype.forEach.call(navRoot.querySelectorAll('.navitem,.subitem'), function(b){ b.classList.remove('active'); });
+    if(el) el.classList.add('active');
+  }
+
+  // ---------- PYU analysis layer ----------
+  function pyuPrices(){ var p={}, base=BUS.pyu.prices, k; for(k in base) p[k]=base[k]; try{ var s=JSON.parse(LS.get('pyu_prices')||'null'); if(s){ for(k in s) p[k]=s[k]; } }catch(e){} return p; }
+  function savePyuPrices(p){ try{ LS.set('pyu_prices', JSON.stringify(p)); }catch(e){} }
+  function pyuSal(){ var r={driver:BUS.pyu.salary.driver, helper:BUS.pyu.salary.helper}; try{ var s=JSON.parse(LS.get('pyu_salary')||'null'); if(s){ if(s.driver!=null)r.driver=s.driver; if(s.helper!=null)r.helper=s.helper; } }catch(e){} return r; }
+  function savePyuSal(r){ try{ LS.set('pyu_salary', JSON.stringify(r)); }catch(e){} }
+  function pyuGetExp(){ try{ var s=JSON.parse(LS.get('pyu_exp')||'null'); if(s) return s; }catch(e){} return BUS.pyu.expenses.map(function(r){return r.slice();}); }
+  function savePyuExp(rows){ try{ LS.set('pyu_exp', JSON.stringify(rows)); }catch(e){} }
+  function pyuRev(d, pr){ pr=pr||pyuPrices(); return (pr[d[1]]||0)*d[5]; }
+  function pyuSalesTotal(){ var pr=pyuPrices(), t=0; BUS.pyu.deliveries.forEach(function(d){ t+=pyuRev(d,pr); }); return t; }
+  function pyuPayroll(){ var r=pyuSal(); return BUS.pyu.deliveries.length*(r.driver+r.helper); }
+  function pyuExpTot(){ var t=0; pyuGetExp().forEach(function(r){ t+=parseFloat((''+r[3]).replace(/,/g,''))||0; }); return t; }
+  var PYU_CHEQUES=[
+    ["Sep 5","Aqua Supplier Inc.","001245","45,000","Sep 20","Pending","Water stock refill"],
+    ["Sep 8","Petron Fuel Station","001246","18,500","Sep 15","Cleared","Diesel account"],
+    ["Sep 10","Truck Parts Depot","001247","7,200","Sep 25","Pending","Spare parts"]
+  ];
+  function pyuGetCheques(){ try{ var s=JSON.parse(LS.get('pyu_cheques')||'null'); if(Array.isArray(s)) return s; }catch(e){} return PYU_CHEQUES.map(function(r){ return r.slice(); }); }
+  function savePyuCheques(rows){ try{ LS.set('pyu_cheques', JSON.stringify(rows)); }catch(e){} }
+  function pyuChqAmt(r){ return parseFloat((''+r[3]).replace(/,/g,''))||0; }
+  function pyuTermDays(t){ var m=(''+t).match(/(\d+)/); return m?parseInt(m[1],10):0; }
+  function pyuDay(lbl){ var m=(''+lbl).match(/(\d+)/); return m?parseInt(m[1],10):0; }
+  function pyuPaid(){ try{ var s=JSON.parse(LS.get('pyu_paid')||'{}'); if(s && typeof s==='object') return s; }catch(e){} return {}; }
+  function savePyuPaid(o){ try{ LS.set('pyu_paid', JSON.stringify(o)); }catch(e){} }
+  function pyuSetPaid(dr,on){ var o=pyuPaid(); if(on) o[dr]=1; else delete o[dr]; savePyuPaid(o); }
+  function pyuDeadlines(){ try{ var s=JSON.parse(LS.get('pyu_deadlines')||'{}'); if(s && typeof s==='object') return s; }catch(e){} return {}; }
+  function savePyuDeadlines(o){ try{ LS.set('pyu_deadlines', JSON.stringify(o)); }catch(e){} }
+  function pyuTerms(){ var t={}, base=BUS.pyu.terms, k; for(k in base) t[k]=base[k]; try{ var s=JSON.parse(LS.get('pyu_terms')||'null'); if(s){ for(k in s) t[k]=s[k]; } }catch(e){} return t; }
+  function savePyuTermOne(c,v){ var o={}; try{ var s=JSON.parse(LS.get('pyu_terms')||'null'); if(s) o=s; }catch(e){} o[c]=v; try{ LS.set('pyu_terms', JSON.stringify(o)); }catch(e){} }
+  var PYU_CUSTOMERS=[
+    {c:"Filinvest Land",rate:187.5,unit:"ton",units:[]},
+    {c:"PSWRI",rate:130,unit:"ton",units:[]},
+    {c:"Cokaliong Shipping Lines",rate:180,unit:"ton",units:["MV FILIPINAS MINDANAO","MV FILIPINAS JAGNA","MV FILIPINAS CAGAYAN","MV FILIPINAS AGUSAN","MV FILIPINAS OZAMIS","MV FILIPINAS UBAY","MV FILIPINAS ILIGAN","TUG 1"]},
+    {c:"Roble Shipping Lines",rate:187.5,unit:"ton",units:["ROBLE MAIN OFFICE","MV GRACEFUL STAR","MV IMMACULATE STAR","MV THERESIAN STAR","MV BEAUTIFUL STAR","MV JOYFUL STAR","ROBLE TUG 5"]},
+    {c:"Trans Asia",rate:217.5,unit:"ton",units:["TRANS ASIA 10","TRANS ASIA 21","TRANS ASIA 12","TRANS ASIA 3","TRANS ASIA 18","TRANS ASIA 15"]},
+    {c:"Gothong Lines",rate:187.5,unit:"ton",units:["MV PANGLAO BAY 1","STORAGE TANK","LCT BRIZU","LCT NATHAN","LCT AKIRA","LCT MAZU"]},
+    {c:"2GO Group",rate:187.5,unit:"ton",units:["MV MASAGANA 2GO","MV MASIKAP 2GO","MV MASINAG 2GO","MV MASIGLA 2GO","MOTORPOOL 2GO","CY QUIMONDA 2GO"]},
+    {c:"Star Philippines",rate:187.5,unit:"ton",units:["MV GRACIOUS STAR"]},
+    {c:"Cebu Metro",rate:187.5,unit:"ton",units:["MT SUGBU"]},
+    {c:"Super Shuttle",rate:187.5,unit:"ton",units:[]},
+    {c:"MV SF Xavier",rate:185,unit:"ton",units:[]},
+    {c:"MV SF Enterprise",rate:185,unit:"ton",units:[]},
+    {c:"MV SF Zenith",rate:185,unit:"ton",units:[]},
+    {c:"GT Ferry",rate:187.5,unit:"ton",units:["GT ALPHA","LCT ABIGAIL","LCT QUEBIC"]},
+    {c:"Avega",rate:187.5,unit:"ton",units:["AVEGA BROS."]},
+    {c:"Manila Water Gatewalk",rate:180,unit:"ton",units:[]},
+    {c:"Core Concrete",rate:6500,unit:"load",units:[]},
+    {c:"J. Santos",rate:180,unit:"ton",units:[]},
+    {c:"Eastern Pacific",rate:187.5,unit:"ton",units:["MV PARANG TRANSPORT","MV ANGKOR 2","MV PACIFIC ISLAND"]},
+    {c:"SM Seaside",rate:185,unit:"ton",units:[]},
+    {c:"SM Jmall",rate:185,unit:"ton",units:[]},
+    {c:"Water World",rate:7500,unit:"load",units:[]}
+  ];
+  var pyuStmtAddOpen=false;
+  function pyuStmtDocs(){ try{ var s=JSON.parse(LS.get('pyu_stmt_docs')||'null'); if(Array.isArray(s)) return s; }catch(e){} return []; }
+  function savePyuStmtDocs(a){ try{ LS.set('pyu_stmt_docs', JSON.stringify(a)); }catch(e){} }
+  function pyuCustomers(){ var arr; try{ var s=JSON.parse(LS.get('pyu_customers')||'null'); if(Array.isArray(s)) arr=s; }catch(e){} if(!arr) arr=PYU_CUSTOMERS.map(function(o){ return {c:o.c,rate:o.rate,unit:o.unit,units:(o.units||[]).slice()}; }); arr.forEach(function(o){ o.units=(o.units||[]).map(function(u){ return (typeof u==='string')?{n:u,r:null}:{n:(u&&u.n!=null?u.n:''),r:(u&&u.r!=null?u.r:null)}; }); }); return arr; }
+  function savePyuCustomers(a){ try{ LS.set('pyu_customers', JSON.stringify(a)); }catch(e){} }
+  var PAYBTN='font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;';
+
+  function renderPyuIntake(){
+    mountUploader($('dateBar'),'pyu_dr_files','DR Record + Orders Listing','No files yet — drop your DR Record and Orders Listing here.');
+    var D=BUS.pyu.deliveries, pr=pyuPrices(), tons=0, rev=0, custs={};
+    D.forEach(function(d){ tons+=d[5]; rev+=pyuRev(d,pr); custs[d[1]]=1; });
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Deliveries</div><div class="v">'+D.length+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Tons hauled</div><div class="v">'+fmt(tons)+'</div><div class="s">across all crews</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Revenue</div><div class="v">'+P+fmt(Math.round(rev))+'</div><div class="s">tons × ₱/ton</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Customers</div><div class="v">'+Object.keys(custs).length+'</div><div class="s">distinct</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Date</th><th>Customer</th><th class="n">DR #</th><th>Driver</th><th>Helper</th><th class="n">Tons</th><th class="n">₱/ton</th><th class="n">Revenue</th></tr></thead><tbody>';
+    D.forEach(function(d){ var rt=pr[d[1]]||0; h+='<tr><td>'+d[0]+'</td><td>'+d[1]+'</td><td class="n">'+d[2]+'</td><td>'+d[3]+'</td><td>'+d[4]+'</td><td class="n">'+d[5]+'</td><td class="n">'+(rt?P+money(rt):'<span style="color:var(--ink-faint)">set</span>')+'</td><td class="n">'+P+money(rt*d[5])+'</td></tr>'; });
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    $('tileNote').innerHTML='This is a <b>sample slice</b> of your DR Record + Orders Listing (real customers, drivers and tons). Each delivery is valued at its customer’s <b>₱/ton</b> rate from the Customers directory. Drop your own files above to replace it — Sales, Customers, Statements, Salary and Overall all read from here.';
+  }
+  function renderPyuSales(){
+    var D=BUS.pyu.deliveries, pr=pyuPrices();
+    var days={}, order=[], tD=0,tT=0,tR=0;
+    D.forEach(function(d){ if(!days[d[0]]){ days[d[0]]={deliv:0,tons:0,rev:0}; order.push(d[0]); } var x=days[d[0]]; x.deliv++; x.tons+=d[5]; x.rev+=pyuRev(d,pr); tD++; tT+=d[5]; tR+=pyuRev(d,pr); });
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Deliveries</div><div class="v">'+tD+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Tons hauled</div><div class="v">'+fmt(tT)+'</div><div class="s">total volume</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Revenue</div><div class="v">'+P+fmt(Math.round(tR))+'</div><div class="s">tons × ₱/ton</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Avg ₱/ton</div><div class="v">'+P+(tT?money(tR/tT):'0.00')+'</div><div class="s">blended rate</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Day</th><th class="n">Deliveries</th><th class="n">Tons</th><th class="n">Revenue</th></tr></thead><tbody>';
+    order.forEach(function(k){ var x=days[k]; h+='<tr><td>'+k+'</td><td class="n">'+x.deliv+'</td><td class="n">'+fmt(x.tons)+'</td><td class="n">'+P+money(x.rev)+'</td></tr>'; });
+    h+='<tr class="tot"><td>Total</td><td class="n">'+tD+'</td><td class="n">'+fmt(tT)+'</td><td class="n">'+P+money(tR)+'</td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    $('tileNote').innerHTML='Revenue = each delivery’s <b>tons × the customer’s ₱/ton rate</b>. Change a rate in Customers and this moves with it. '+BUS.pyu.period+' (sample slice).';
+  }
+  function renderPyuCustomers(){
+    var data=pyuCustomers();
+    var D=BUS.pyu.deliveries, paid=pyuPaid(), terms=pyuTerms();
+    function nn(s){ return (''+s).toLowerCase().trim(); }
+    function balOf(o){ var names={}; names[nn(o.c)]=1; (o.units||[]).forEach(function(u){ if(u.n) names[nn(u.n)]=1; }); var billed=0,recv=0;
+      D.forEach(function(d){ var dn=nn(d[1]); if(!names[dn]) return; var ov=null; (o.units||[]).forEach(function(u){ if(nn(u.n)===dn && u.r!=null) ov=u.r; }); var rate=(ov!=null?ov:o.rate); var rev=(o.unit==='load')?rate:rate*d[5]; billed+=rev; if(paid[d[2]]) recv+=rev; });
+      return {billed:billed,recv:recv,bal:billed-recv}; }
+    var bals=data.map(balOf);
+    var unitCount=0, totOwed=0, totRecv=0; data.forEach(function(o,ix){ unitCount+=(o.units||[]).length; totOwed+=bals[ix].bal; totRecv+=bals[ix].recv; });
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Customers</div><div class="v">'+data.length+'</div><div class="s">companies</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Units / vessels</div><div class="v">'+unitCount+'</div><div class="s">across all customers</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Received</div><div class="v">'+P+fmt(Math.round(totRecv))+'</div><div class="s">paid so far</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Owed to you</div><div class="v">'+P+fmt(Math.round(totOwed))+'</div><div class="s">outstanding balance</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:12px"><span class="uplabel">Customers &amp; rates — edit inline, add units per customer</span><button class="upbtn" id="pyuAddCust">+ Add customer</button></div>';
+    h+='<div id="pyuCustList">';
+    data.forEach(function(o,i){
+      h+='<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--panel)">';
+      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      h+='<input class="exin cust-name" data-i="'+i+'" value="'+esc(o.c)+'" style="flex:1;min-width:150px;font-weight:600;font-family:\'Bricolage Grotesque\',sans-serif">';
+      h+='<span style="color:var(--ink-soft)">₱</span><input class="exin exn cust-rate" data-i="'+i+'" value="'+esc(o.rate)+'" style="max-width:88px">';
+      h+='<select class="exin cust-unit" data-i="'+i+'" style="max-width:130px"><option value="ton"'+(o.unit!=='load'?' selected':'')+'>per ton</option><option value="load"'+(o.unit==='load'?' selected':'')+'>per truckload</option></select>';
+      h+='<button class="cust-del" data-i="'+i+'" title="Remove customer" style="'+PAYBTN+'border:1px solid var(--line-strong);color:var(--ink-soft);background:transparent">Delete</button>';
+      h+='</div>';
+      var b=bals[i], bcol=b.bal>0.005?'var(--red)':'var(--good)';
+      h+='<div style="margin-top:8px;font-size:12.5px">Balance owed: <b style="color:'+bcol+'">'+(b.bal>0.005?P+money(b.bal):'₱0.00')+'</b>'+(b.billed>0.005?' <span style="color:var(--ink-faint)">(billed '+P+money(b.billed)+' − paid '+P+money(b.recv)+')</span>':' <span style="color:var(--ink-faint)">— no deliveries matched yet</span>')+'</div>';
+      h+='<div style="margin-top:10px;padding-left:2px">';
+      h+='<div class="uplabel" style="font-size:11px;margin-bottom:2px">Units / vessels</div>';
+      (o.units||[]).forEach(function(u,j){
+        h+='<div style="display:flex;gap:8px;margin-top:5px;align-items:center">'
+          +'<span style="color:var(--ink-faint)">—</span>'
+          +'<input class="exin unit-name" data-i="'+i+'" data-j="'+j+'" value="'+esc(u.n)+'" placeholder="Vessel / unit name" style="flex:1;max-width:250px">'
+          +'<span style="color:var(--ink-soft)">₱</span>'
+          +'<input class="exin exn unit-rate" data-i="'+i+'" data-j="'+j+'" value="'+(u.r!=null?esc(u.r):'')+'" placeholder="'+esc(o.rate)+'" title="Own rate for this unit — leave blank to use the company rate" style="max-width:84px">'
+          +'<button class="unit-del" data-i="'+i+'" data-j="'+j+'" title="Remove" style="'+PAYBTN+'border:1px solid var(--line-strong);color:var(--ink-soft);background:transparent">×</button>'
+          +'</div>';
+      });
+      if(!(o.units||[]).length){ h+='<div style="color:var(--ink-faint);font-size:12px;margin-top:2px">No units yet — add the vessels/units you deliver to for this customer.</div>'; }
+      h+='<button class="unit-add" data-i="'+i+'" style="'+PAYBTN+'border:1px solid var(--brand);color:var(--brand);background:transparent;margin-top:8px">+ Add unit</button>';
+      h+='</div></div>';
+    });
+    h+='</div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    var root=$('pyuCustList');
+    function save(){ savePyuCustomers(data); }
+    Array.prototype.forEach.call(root.querySelectorAll('.cust-name'), function(inp){ inp.addEventListener('input', function(){ data[+inp.getAttribute('data-i')].c=inp.value; save(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.cust-rate'), function(inp){ inp.addEventListener('input', function(){ data[+inp.getAttribute('data-i')].rate=parseFloat((''+inp.value).replace(/,/g,''))||0; save(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.cust-unit'), function(sel){ sel.addEventListener('change', function(){ data[+sel.getAttribute('data-i')].unit=sel.value; save(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.unit-name'), function(inp){ inp.addEventListener('input', function(){ data[+inp.getAttribute('data-i')].units[+inp.getAttribute('data-j')].n=inp.value; save(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.unit-rate'), function(inp){ inp.addEventListener('input', function(){ var v=(''+inp.value).replace(/,/g,'').trim(); data[+inp.getAttribute('data-i')].units[+inp.getAttribute('data-j')].r = (v===''?null:(parseFloat(v)||0)); save(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.unit-del'), function(b){ b.addEventListener('click', function(){ var i=+b.getAttribute('data-i'),j=+b.getAttribute('data-j'); data[i].units.splice(j,1); save(); renderPyuCustomers(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.unit-add'), function(b){ b.addEventListener('click', function(){ var i=+b.getAttribute('data-i'); if(!data[i].units) data[i].units=[]; data[i].units.push({n:'',r:null}); save(); renderPyuCustomers(); }); });
+    Array.prototype.forEach.call(root.querySelectorAll('.cust-del'), function(b){ b.addEventListener('click', function(){ data.splice(+b.getAttribute('data-i'),1); save(); renderPyuCustomers(); }); });
+    $('pyuAddCust').addEventListener('click', function(){ data.push({c:'New customer',rate:187.5,unit:'ton',units:[]}); save(); renderPyuCustomers(); });
+    $('tileNote').innerHTML='Your <b>customer directory</b>, rates, and <b>running balance</b>. Most bill <b>₱ per ton</b>; Core Concrete and Water World are <b>per truckload</b>. Under each customer, add the <b>units / vessels</b> you deliver to (each can have its <b>own rate</b> for a different location/deal; blank uses the company rate). <b>Balance owed = billed − paid</b>; it fills in as a customer’s deliveries are matched (by company name or a unit you add) and payments are marked in Statements.';
+  }
+  function renderPyuPayments(){
+    var D=BUS.pyu.deliveries, pr=pyuPrices(), terms=pyuTerms(), paid=pyuPaid();
+    var rows=[], total=0, billed=0;
+    D.forEach(function(d){ var rev=pyuRev(d,pr); billed+=rev; if(paid[d[2]]){ rows.push({d:d,c:d[1],rev:rev}); total+=rev; } });
+    var g='';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Received</div><div class="v">'+P+fmt(Math.round(total))+'</div><div class="s">cheques marked paid</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Payments</div><div class="v">'+rows.length+'</div><div class="s">deliveries settled</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Still to collect</div><div class="v">'+P+fmt(Math.round(billed-total))+'</div><div class="s">of '+P+fmt(Math.round(billed))+' billed</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Payments received — '+BUS.pyu.period+'</span></div>';
+    if(!rows.length){
+      h+='<div class="upempty" style="margin-top:8px">Nothing received yet. Mark a statement paid in Statements and it appears here.</div>';
+    } else {
+      rows.sort(function(a,b){ return pyuDay(a.d[0])-pyuDay(b.d[0]); });
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Date</th><th>Customer</th><th class="n">DR #</th><th class="n">Amount</th><th></th></tr></thead><tbody id="pyuPayBody">';
+      rows.forEach(function(r){ h+='<tr><td>'+r.d[0]+'</td><td>'+r.c+'</td><td class="n">'+r.d[2]+'</td><td class="n">'+P+money(r.rev)+'</td><td class="n"><button data-undr="'+r.d[2]+'" style="'+PAYBTN+'border:1px solid var(--line-strong);color:var(--ink-soft);background:transparent">Undo</button></td></tr>'; });
+      h+='<tr class="tot"><td colspan="3">Total received</td><td class="n">'+P+money(total)+'</td><td></td></tr>';
+      h+='</tbody></table></div>';
+    }
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    var pb=$('pyuPayBody'); if(pb){ pb.addEventListener('click', function(e){ var b=e.target.closest('[data-undr]'); if(!b) return; pyuSetPaid(b.getAttribute('data-undr'), false); renderPyuPayments(); }); }
+    $('tileNote').innerHTML='<b>Actual cash in</b> — not what was billed. A payment shows here once you <b>Mark it paid</b> in Statements (when the customer’s cheque clears). <b>Undo</b> puts it back to outstanding. Because customers pay on terms, this is your true collected figure vs. what’s still owed.';
+  }
+  function renderPyuStatements(){
+    var D=BUS.pyu.deliveries, pr=pyuPrices(), terms=pyuTerms(), paid=pyuPaid(), dls=pyuDeadlines(), asOf=BUS.pyu.asOf;
+    var m={}, order=[];
+    D.forEach(function(d){ var c=d[1], td=pyuTermDays(terms[c]||'15 DAYS'); var rev=pyuRev(d,pr), day=pyuDay(d[0]);
+      if(!m[c]){ m[c]={deliv:0,tons:0,amt:0,paid:0,pending:0,drs:[],term:terms[c]||'15 DAYS',lastDay:day,td:td}; order.push(c); }
+      var x=m[c]; x.deliv++; x.tons+=d[5]; x.amt+=rev; x.drs.push(d[2]); if(paid[d[2]]) x.paid+=rev; else x.pending+=rev; if(day>x.lastDay) x.lastDay=day;
+    });
+    var rows=order.map(function(c){ var x=m[c]; var st = x.pending<=0.005 ? 'Paid' : (x.paid>0.005 ? 'Partial' : 'Pending'); var due=x.lastDay+x.td; var dl=(dls[c]!=null?dls[c]:('Sep '+due)); var dueDay=pyuDay(dl); var od=(dueDay>0 && dueDay<asOf && st!=='Paid'); return {c:c,x:x,st:st,due:due,dl:dl,od:od}; });
+    rows.sort(function(a,b){ if(a.od!==b.od) return a.od?-1:1; var o={Pending:0,Partial:1,Paid:2}; return o[a.st]-o[b.st] || b.x.pending-a.x.pending; });
+    var tAmt=0,tPend=0,tPaid=0,tOver=0,cOver=0; rows.forEach(function(r){ tAmt+=r.x.amt; tPend+=r.x.pending; tPaid+=r.x.paid; if(r.od){ tOver+=r.x.pending; cOver++; } });
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Statements</div><div class="v">'+rows.length+'</div><div class="s">credit customers</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>On statement</div><div class="v">'+P+fmt(Math.round(tAmt))+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Pending</div><div class="v">'+P+fmt(Math.round(tPend))+'</div><div class="s">'+(cOver?cOver+' overdue · '+P+fmt(Math.round(tOver)):'not yet paid')+'</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Paid</div><div class="v">'+P+fmt(Math.round(tPaid))+'</div><div class="s">settled</div></div>';
+    $('tileGrid').innerHTML=g;
+    var docs=pyuStmtDocs();
+    var h='<div class="uprow" style="margin-top:18px;margin-bottom:10px"><span class="uplabel">Uploaded statements</span><button class="upbtn" id="pyuStmtAddBtn">+ Add statement</button></div>';
+    if(pyuStmtAddOpen){
+      var coOpts=pyuCustomers().map(function(o){ return '<option value="'+esc(o.c)+'">'; }).join('');
+      h+='<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:var(--panel);display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        +'<input id="pyuStmtCo" class="exin" list="pyuStmtCoList" placeholder="Company" style="flex:1;min-width:150px;border:1px solid var(--line-strong)"><datalist id="pyuStmtCoList">'+coOpts+'</datalist>'
+        +'<input id="pyuStmtDate" class="exin" placeholder="Date (e.g. Sep 2026)" style="max-width:170px;border:1px solid var(--line-strong)">'
+        +'<input id="pyuStmtFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx,.csv,.doc,.docx" style="max-width:210px;font-size:12px">'
+        +'<button class="upbtn" id="pyuStmtSave">Upload</button>'
+        +'<button id="pyuStmtCancel" style="'+PAYBTN+'border:1px solid var(--line-strong);color:var(--ink-soft);background:transparent">Cancel</button>'
+        +'<div id="pyuStmtMsg" style="flex-basis:100%;color:var(--red);font-size:12px;margin-top:2px"></div>'
+        +'</div>';
+    }
+    if(docs.length){
+      h+='<div class="rtwrap" style="margin-bottom:18px"><table class="rt"><thead><tr><th>Statement</th><th>File</th><th></th></tr></thead><tbody>';
+      docs.forEach(function(d,i){ h+='<tr><td><b>'+esc(d.co)+'</b> — '+esc(d.date)+'</td><td style="color:var(--ink-soft)">'+esc(d.file)+'</td><td class="n"><button data-di="'+i+'" class="stmtdoc-del" style="'+PAYBTN+'border:1px solid var(--line-strong);color:var(--ink-soft);background:transparent">Remove</button></td></tr>'; });
+      h+='</tbody></table></div>';
+    } else if(!pyuStmtAddOpen){
+      h+='<div class="upempty" style="margin-bottom:18px">No statements uploaded yet. Click <b>+ Add statement</b>, type the company and date, and attach the file.</div>';
+    }
+    h+='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Customer statements — set the deadline, mark Pending / Paid</span></div>';
+    if(!rows.length){
+      h+='<div class="upempty" style="margin-top:8px">No credit customers in this period.</div>';
+    } else {
+      h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Customer</th><th class="n">Deliveries</th><th class="n">Amount</th><th>Schedule</th><th>Deadline</th><th>Status</th><th></th></tr></thead><tbody id="pyuStmtBody">';
+      rows.forEach(function(r){ var x=r.x; var stColor = r.st==='Paid'?'var(--good)':(r.st==='Partial'?'var(--amber)':'var(--red)');
+        var dl = r.dl;
+        var btn = r.st==='Paid'
+          ? '<button data-cust="'+esc(r.c)+'" data-act="unpay" style="'+PAYBTN+'border:1px solid var(--line-strong);color:var(--ink-soft);background:transparent">Reopen</button>'
+          : '<button data-cust="'+esc(r.c)+'" data-act="pay" style="'+PAYBTN+'border:1px solid var(--brand);color:var(--brand);background:transparent">Mark paid</button>';
+        var statusCell='<span style="color:'+stColor+';font-weight:600">'+r.st+'</span>'+(r.od?' <span style="color:var(--red);font-size:11px;font-weight:700">· OVERDUE</span>':'')+(r.st==='Partial'?' <span style="color:var(--ink-faint);font-size:11px">('+P+money(x.pending)+' left)</span>':'');
+        var dlStyle='max-width:110px'+(r.od?';color:var(--red);font-weight:600':'');
+        h+='<tr><td>'+r.c+'</td><td class="n">'+x.deliv+'</td><td class="n">'+P+money(x.amt)+'</td><td><input class="exin stmtsch" data-cust="'+esc(r.c)+'" value="'+esc(x.term)+'" style="max-width:96px"></td><td><input class="exin stmtdl" data-cust="'+esc(r.c)+'" value="'+esc(dl)+'" style="'+dlStyle+'"></td><td>'+statusCell+'</td><td class="n">'+btn+'</td></tr>'; });
+      h+='<tr class="tot"><td>Total</td><td class="n">'+rows.reduce(function(s,r){return s+r.x.deliv;},0)+'</td><td class="n">'+P+money(tAmt)+'</td><td></td><td></td><td></td><td></td></tr>';
+      h+='</tbody></table></div>';
+    }
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    if($('pyuStmtAddBtn')) $('pyuStmtAddBtn').addEventListener('click', function(){ pyuStmtAddOpen=true; renderPyuStatements(); });
+    if($('pyuStmtCancel')) $('pyuStmtCancel').addEventListener('click', function(){ pyuStmtAddOpen=false; renderPyuStatements(); });
+    if($('pyuStmtSave')) $('pyuStmtSave').addEventListener('click', function(){ var co=(($('pyuStmtCo').value)||'').trim(), dt=(($('pyuStmtDate').value)||'').trim(), fi=$('pyuStmtFile').files, fn=(fi&&fi[0])?fi[0].name:''; if(!co||!dt||!fn){ $('pyuStmtMsg').textContent='Please enter the company, the date, and choose a file.'; return; } var arr=pyuStmtDocs(); arr.unshift({co:co,date:dt,file:fn}); savePyuStmtDocs(arr); pyuStmtAddOpen=false; renderPyuStatements(); });
+    Array.prototype.forEach.call(document.querySelectorAll('.stmtdoc-del'), function(b){ b.addEventListener('click', function(){ var arr=pyuStmtDocs(); arr.splice(+b.getAttribute('data-di'),1); savePyuStmtDocs(arr); renderPyuStatements(); }); });
+    var body=$('pyuStmtBody');
+    if(body){
+      Array.prototype.forEach.call(body.querySelectorAll('.stmtdl'), function(inp){ inp.addEventListener('input', function(){ var o=pyuDeadlines(); o[inp.getAttribute('data-cust')]=inp.value; savePyuDeadlines(o); }); });
+      Array.prototype.forEach.call(body.querySelectorAll('.stmtsch'), function(inp){ inp.addEventListener('input', function(){ savePyuTermOne(inp.getAttribute('data-cust'), inp.value); }); });
+      body.addEventListener('click', function(e){ var b=e.target.closest('[data-act]'); if(!b) return; var c=b.getAttribute('data-cust'), act=b.getAttribute('data-act'), o=pyuPaid(); (m[c].drs||[]).forEach(function(dr){ if(act==='pay') o[dr]=1; else delete o[dr]; }); savePyuPaid(o); renderPyuStatements(); });
+    }
+    $('tileNote').innerHTML='One statement per <b>credit customer</b> — total due, an editable <b>schedule</b> and <b>deadline</b> (type to change either), and a <b>Pending / Paid</b> toggle. A deadline in the past is flagged <b style="color:var(--red)">OVERDUE</b> and sorted to the top. Marking paid flows through to Payments Received and the Customers balance. Everyone pays on terms (by cheque) — nothing is auto-collected.';
+  }
+  function renderPyuSalary(){
+    var D=BUS.pyu.deliveries, rates=pyuSal();
+    var pp={}, order=[];
+    function add(name,role,tons){ if(!name)return; if(!pp[name]){ pp[name]={name:name,role:role,deliv:0,tons:0}; order.push(name);} pp[name].deliv++; pp[name].tons+=tons; }
+    D.forEach(function(d){ add(d[3],'Driver',d[5]); add(d[4],'Helper',d[5]); });
+    var rows=order.map(function(n){ var x=pp[n]; var rate=x.role==='Driver'?rates.driver:rates.helper; return {name:n,role:x.role,deliv:x.deliv,tons:x.tons,rate:rate,pay:x.deliv*rate}; });
+    rows.sort(function(a,b){ return b.pay-a.pay; });
+    var total=0; rows.forEach(function(r){ total+=r.pay; });
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Crew</div><div class="v">'+rows.length+'</div><div class="s">drivers + helpers</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Deliveries</div><div class="v">'+D.length+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Payroll</div><div class="v">'+P+fmt(Math.round(total))+'</div><div class="s">this period</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Basis</div><div class="v" style="font-size:15px">per delivery</div><div class="s">editable →</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Rate per delivery — type to change</span></div>';
+    h+='<div class="rtwrap" style="margin-bottom:16px"><table class="rt"><tbody>';
+    h+='<tr><td>Driver rate (₱ / delivery)</td><td class="n"><input class="exin exn" id="pyuDrv" value="'+rates.driver+'"></td></tr>';
+    h+='<tr><td>Helper rate (₱ / delivery)</td><td class="n"><input class="exin exn" id="pyuHlp" value="'+rates.helper+'"></td></tr>';
+    h+='</tbody></table></div>';
+    h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Person</th><th>Role</th><th class="n">Deliveries</th><th class="n">Tons</th><th class="n">Rate</th><th class="n">Salary</th></tr></thead><tbody>';
+    rows.forEach(function(r){ h+='<tr><td>'+r.name+'</td><td>'+r.role+'</td><td class="n">'+r.deliv+'</td><td class="n">'+fmt(r.tons)+'</td><td class="n">'+P+money(r.rate)+'</td><td class="n">'+P+money(r.pay)+'</td></tr>'; });
+    h+='<tr class="tot"><td>Total payroll</td><td></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">'+P+money(total)+'</td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    function upd(){ var r=pyuSal(); r.driver=parseFloat((''+$('pyuDrv').value).replace(/,/g,''))||0; r.helper=parseFloat((''+$('pyuHlp').value).replace(/,/g,''))||0; savePyuSal(r); renderPyuSalary(); }
+    $('pyuDrv').addEventListener('change', upd); $('pyuHlp').addEventListener('change', upd);
+    $('tileNote').innerHTML='Salary follows the <b>person</b>, not the truck — each delivery credits its driver and its helper. Set the two rates above (placeholder for now). If you actually pay <b>per ton</b>, tell me and I switch the basis.';
+  }
+  function renderPyuCheques(){
+    var rows=pyuGetCheques();
+    var tot=0, pend=0, clr=0; rows.forEach(function(r){ var a=pyuChqAmt(r); tot+=a; if((''+(r[5]||'')).toLowerCase()==='cleared') clr+=a; else pend+=a; });
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Cheques issued</div><div class="v">'+rows.length+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Total issued</div><div class="v">'+P+fmt(Math.round(tot))+'</div><div class="s">all cheques</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Outstanding</div><div class="v">'+P+fmt(Math.round(pend))+'</div><div class="s">not yet cleared</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Cleared</div><div class="v">'+P+fmt(Math.round(clr))+'</div><div class="s">debited</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Cheques issued — type to edit</span><button class="upbtn" id="pyuChqAdd">+ Add cheque</button></div>';
+    h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Date issued</th><th>Payee</th><th>Cheque #</th><th class="n">Amount</th><th>Due date</th><th>Status</th><th>Note</th><th></th></tr></thead><tbody id="pyuChqBody">';
+    rows.forEach(function(r,i){
+      var st=(''+(r[5]||'Pending'));
+      var stSel='<select class="exin chq-st"><option'+(st==='Pending'?' selected':'')+'>Pending</option><option'+(st==='Cleared'?' selected':'')+'>Cleared</option></select>';
+      h+='<tr data-i="'+i+'"><td><input class="exin" value="'+esc(r[0])+'"></td><td><input class="exin" value="'+esc(r[1])+'"></td><td><input class="exin" value="'+esc(r[2])+'"></td><td><input class="exin exn" value="'+esc(r[3])+'"></td><td><input class="exin" value="'+esc(r[4])+'"></td><td>'+stSel+'</td><td><input class="exin" value="'+esc(r[6]||'')+'"></td><td><button class="exdel" title="Delete">&times;</button></td></tr>';
+    });
+    h+='<tr class="tot"><td colspan="3">Total issued</td><td class="n" id="pyuChqTot">'+P+money(tot)+'</td><td></td><td></td><td></td><td></td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    var body=$('pyuChqBody');
+    function collect(){ var out=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var ins=tr.querySelectorAll('.exin'); var sel=tr.querySelector('.chq-st'); out.push([ins[0].value,ins[1].value,ins[2].value,ins[3].value,ins[4].value,sel.value,ins[5].value]); }); return out; }
+    Array.prototype.forEach.call(body.querySelectorAll('.exin'), function(inp){ inp.addEventListener('input', function(){ var rr=collect(); savePyuCheques(rr); var t=0; rr.forEach(function(r){ t+=pyuChqAmt(r); }); $('pyuChqTot').innerHTML=P+money(t); }); });
+    Array.prototype.forEach.call(body.querySelectorAll('.chq-st'), function(sel){ sel.addEventListener('change', function(){ savePyuCheques(collect()); renderPyuCheques(); }); });
+    Array.prototype.forEach.call(body.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rr=collect(); rr.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); savePyuCheques(rr); renderPyuCheques(); }); });
+    $('pyuChqAdd').addEventListener('click', function(){ var rr=collect(); rr.push(["","","","0","","Pending",""]); savePyuCheques(rr); renderPyuCheques(); });
+    $('tileNote').innerHTML='Cheques you’ve <b>issued</b> to suppliers and creditors — your <b>payables</b>. Track each one’s payee, cheque number, amount and due date, and flip <b>Status</b> to <b>Cleared</b> once it’s debited. <b>Outstanding</b> is what’s still to be paid out. Feeds nothing automatically — it’s your cheque monitor.';
+  }
+  function renderPyuExpenses(){
+    var rows=pyuGetExp(), total=pyuExpTot();
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Total expenses</div><div class="v">'+P+money(total)+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Entries</div><div class="v">'+rows.length+'</div><div class="s">rows</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Cash out — type to edit</span><button class="upbtn" id="pyuExpAdd">+ Add row</button></div>';
+    h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Date</th><th>Item</th><th>Category</th><th class="n">Amount</th><th></th></tr></thead><tbody id="pyuExpBody">';
+    rows.forEach(function(r,i){ h+='<tr data-i="'+i+'"><td><input class="exin" value="'+esc(r[0])+'"></td><td><input class="exin" value="'+esc(r[1])+'"></td><td><input class="exin" value="'+esc(r[2])+'"></td><td><input class="exin exn" value="'+esc(r[3])+'"></td><td><button class="exdel" title="Delete row">&times;</button></td></tr>'; });
+    h+='<tr class="tot"><td colspan="3">Total</td><td class="n" id="pyuExpTot">'+P+money(total)+'</td><td></td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    var body=$('pyuExpBody');
+    function collect(){ var rr=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var c=tr.querySelectorAll('.exin'); rr.push([c[0].value,c[1].value,c[2].value,c[3].value]); }); return rr; }
+    Array.prototype.forEach.call(body.querySelectorAll('.exin'), function(inp){ inp.addEventListener('input', function(){ var rr=collect(); savePyuExp(rr); var t=0; rr.forEach(function(r){ t+=parseFloat((''+r[3]).replace(/,/g,''))||0; }); $('pyuExpTot').innerHTML=P+money(t); }); });
+    Array.prototype.forEach.call(body.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rr=collect(); rr.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); savePyuExp(rr); renderPyuExpenses(); }); });
+    $('pyuExpAdd').addEventListener('click', function(){ var rr=collect(); rr.push(["","","","0"]); savePyuExp(rr); renderPyuExpenses(); });
+    $('tileNote').innerHTML='The cash-out side — fuel, maintenance, overhead. Not in the export files, so you keep it here (light). Feeds the Overall Report.';
+  }
+  function renderPyuOverall(){
+    var sales=pyuSalesTotal(), payroll=pyuPayroll(), exp=pyuExpTot(), left=sales-payroll-exp;
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Sales</div><div class="v">'+P+fmt(Math.round(sales))+'</div><div class="s">'+BUS.pyu.period+'</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Crew salary</div><div class="v">'+P+fmt(Math.round(payroll))+'</div><div class="s">drivers + helpers</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Expenses</div><div class="v">'+P+fmt(Math.round(exp))+'</div><div class="s">fuel, maintenance…</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Left with PYU</div><div class="v">'+P+fmt(Math.round(left))+'</div><div class="s">sales − salary − expenses</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Line</th><th class="n">Amount</th><th>Note</th></tr></thead><tbody>';
+    h+='<tr><td><b>Sales</b> (money in)</td><td class="n">'+P+money(sales)+'</td><td>tons × ₱/ton, all deliveries</td></tr>';
+    h+='<tr><td>− Crew salary</td><td class="n">'+P+money(payroll)+'</td><td>per-delivery, drivers + helpers</td></tr>';
+    h+='<tr><td>− Expenses</td><td class="n">'+P+money(exp)+'</td><td>fuel, maintenance, overhead</td></tr>';
+    h+='<tr class="tot"><td>Left with PYU</td><td class="n">'+P+money(left)+'</td><td>what you keep</td></tr>';
+    h+='</tbody></table></div>';
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    $('tileNote').innerHTML='Sales from the delivery data × your price list; salary from the crew tallies; expenses from the Expense Log. '+BUS.pyu.period+' (sample slice). Product cost (COGS) isn’t in the files, so it isn’t deducted yet.';
+  }
+
+  function showView(it){
+    var bus=BUS[current];
+    curIt=it;
+    $('viewTitle').innerHTML=it.title;
+    $('viewDesc').innerHTML=it.desc;
+    var view=it.view||'config';
+    $('dateBar').hidden=true;
+    $('filterBar').hidden=true;
+    if(view==='config'){
+      $('tilePanel').hidden=true; $('configPanel').hidden=false;
+      $('cfgIco').innerHTML=svg(it.icon||'doc');
+      $('cfgHead').innerHTML=it.title;
+      $('cfgBody').innerHTML=it.desc;
+      var s=''; (it.steps||[]).forEach(function(x){ s+='<li>'+x+'</li>'; });
+      $('cfgSteps').innerHTML=s;
+      return;
+    }
+    if(current==='pyu' && view.indexOf('pyu_')===0){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      if(view==='pyu_intake') renderPyuIntake();
+      else if(view==='pyu_sales') renderPyuSales();
+      else if(view==='pyu_customers') renderPyuCustomers();
+      else if(view==='pyu_statements'){ pyuStmtAddOpen=false; renderPyuStatements(); }
+      else if(view==='pyu_payments') renderPyuPayments();
+      else if(view==='pyu_salary') renderPyuSalary();
+      else if(view==='pyu_expenses') renderPyuExpenses();
+      else if(view==='pyu_cheques') renderPyuCheques();
+      else if(view==='pyu_overall') renderPyuOverall();
+      return;
+    }
+    if(view==='recipes'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var names=Object.keys(RECIPE);
+      var favg=0,n=0;
+      names.forEach(function(nm){ var it=ITEM[nm]; if(!it)return; var s=0; RECIPE[nm].forEach(function(l){s+=l[2];}); if(it[0]){favg+=100*s/it[0];n++;} });
+      favg=n?favg/n:0;
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Recipes loaded</div><div class="v">'+names.length+'</div><div class="s">coffee &amp; matcha drinks</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Avg drink food cost</div><div class="v">'+favg.toFixed(1)+'%</div><div class="s">recipe cost ÷ price</div></div>';
+      $('tileGrid').innerHTML=g;
+      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Drink</th><th class="n">Recipe cost</th><th class="n">Price</th><th class="n">FC%</th></tr></thead><tbody>';
+      names.forEach(function(nm){ var it=ITEM[nm]; if(!it)return; var s=0; RECIPE[nm].forEach(function(l){s+=l[2];}); var fc=it[0]?100*s/it[0]:0; h+='<tr><td>'+nm+'</td><td class="n">'+P+money(s)+'</td><td class="n">'+P+fmt(it[0])+'</td><td class="n">'+fc.toFixed(1)+'%</td></tr>'; });
+      h+='</tbody></table></div>';
+      h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 2px;color:var(--ink)">Ingredient breakdown</h3>';
+      names.forEach(function(nm){
+        var s=0; RECIPE[nm].forEach(function(l){s+=l[2];});
+        h+='<div class="rcard"><div class="rhd">'+nm+' <span>'+P+money(s)+'</span></div>';
+        RECIPE[nm].forEach(function(l){ h+='<div class="rrow"><span>'+l[0]+(l[1]?' · '+l[1]:'')+'</span><span class="rc">'+P+money(l[2])+'</span></div>'; });
+        h+='</div>';
+      });
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='These recipes now cost every drink across the Daily, Monthly and Overall reports. Food &amp; shakes use their given cost (no recipe needed).';
+      return;
+    }
+    if(view==='tally' && bus.reports){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var month=monthBar();
+      var reps=reportsForMonth(month), days=reps.length;
+      var agg={}; reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
+      getManual(month).forEach(function(mm){ if(mm[0]) agg[mm[0]]=(agg[mm[0]]||0)+(parseFloat(mm[1])||0); });
+      var order=filterOrder(Object.keys(agg).map(function(k){ return [k,agg[k]]; }));
+      var c=computeReport(order);
+      showFilter();
+      var rows=c.rows.slice().sort(function(a,b){ return (b[1]-a[1])||(b[2]-a[2]); });
+      var best=rows[0]||['—',0,0], worst=rows[rows.length-1]||['—',0,0], mix=groupCOGS(order);
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Items sold</div><div class="v">'+c.units+'</div><div class="s">'+rows.length+' distinct items</div></div>';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Revenue</div><div class="v">'+P+fmt(Math.round(c.sales))+'</div><div class="s">'+days+' days · '+month+'</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Top seller</div><div class="v" style="font-size:18px">'+best[0]+'</div><div class="s">'+best[1]+' sold</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Slowest</div><div class="v" style="font-size:18px">'+worst[0]+'</div><div class="s">'+worst[1]+' sold</div></div>';
+      $('tileGrid').innerHTML=g;
+      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>#</th><th>Item</th><th class="n">Units</th><th class="n">Revenue</th><th class="n">% of sales</th></tr></thead><tbody>';
+      rows.forEach(function(r,i){ h+='<tr><td>'+(i+1)+'</td><td>'+r[0]+'</td><td class="n">'+r[1]+'</td><td class="n">'+P+money(r[2])+'</td><td class="n">'+(c.sales?(100*r[2]/c.sales).toFixed(1):'0.0')+'%</td></tr>'; });
+      h+='</tbody></table></div>';
+      if(itemFilter==='all'){
+        h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 2px;color:var(--ink)">Category mix</h3>';
+        h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Group</th><th class="n">Units</th><th class="n">Revenue</th><th class="n">% of sales</th></tr></thead><tbody>';
+        h+='<tr><td>Coffee &amp; Matcha</td><td class="n">'+mix.cm.units+'</td><td class="n">'+P+money(mix.cm.sales)+'</td><td class="n">'+(c.sales?(100*mix.cm.sales/c.sales).toFixed(1):'0.0')+'%</td></tr>';
+        h+='<tr><td>Food &amp; Shakes</td><td class="n">'+mix.fs.units+'</td><td class="n">'+P+money(mix.fs.sales)+'</td><td class="n">'+(c.sales?(100*mix.fs.sales/c.sales).toFixed(1):'0.0')+'%</td></tr>';
+        h+='<tr class="tot"><td>Total</td><td class="n">'+c.units+'</td><td class="n">'+P+money(c.sales)+'</td><td class="n">100%</td></tr>';
+        h+='</tbody></table></div>';
+      }
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='<b>'+month+'</b> — compiled from '+days+' day(s), ranked by units sold (includes manual adds). Switch months with Prev / Next month. Use it to spot what to push and what to cut.';
+      return;
+    }
+    if(view==='moneyin'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      renderMoneyIn();
+      return;
+    }
+    if(view==='cash' && current==='ohllys' && bus.reports){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var month=monthBar();
+      var reps=reportsForMonth(month), days=reps.length;
+      var agg={}; reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
+      var order=Object.keys(agg).map(function(k){ return [k,agg[k]]; });
+      var c=computeReport(order), cogs=c.cogs;
+      var cashHand=0, ewallet=0, receivable=0, grossIn=0, feesTot=0;
+      reps.forEach(function(rp){
+        var mi=getMoneyIn(rp.d);
+        (mi.rows||[]).forEach(function(row){
+          var gr=parseFloat((''+row[1]).replace(/,/g,''))||0, fpct=parseFloat((''+row[2]).replace(/,/g,''))||0;
+          var net=gr*(1-fpct/100); grossIn+=gr; feesTot+=gr-net;
+          var nm=row[0]||'';
+          if(nm==='Cash') cashHand+=net;
+          else if(/gcash|maya/i.test(nm)) ewallet+=net;
+          else receivable+=net;
+        });
+      });
+      var netIn=cashHand+ewallet+receivable, liquidNow=cashHand+ewallet;
+      var expLines=[], expTot=0;
+      getExpenses(month).forEach(function(e){ var amt=parseFloat((''+e[3]).replace(/,/g,''))||0; if(amt>0){ expLines.push([e[1]||'Expense', amt, e[2]||'']); expTot+=amt; } });
+      var taxPct=0, taxReserve=netIn*taxPct/100;
+      var freeCash=netIn-cogs-expTot-taxReserve;
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Net money in</div><div class="v">'+P+fmt(Math.round(netIn))+'</div><div class="s">after fees · '+days+' days</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Reserve: ingredients</div><div class="v">'+P+fmt(Math.round(cogs))+'</div><div class="s">next restock (COGS)</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Reserve: running costs</div><div class="v">'+P+fmt(Math.round(expTot))+'</div><div class="s">salary + supplies</div></div>';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Free for Ohlly’s</div><div class="v">'+P+fmt(Math.round(freeCash))+'</div><div class="s">safe to take</div></div>';
+      $('tileGrid').innerHTML=g;
+      if(days===0){ $('reportTable').innerHTML='<div class="upempty" style="margin-top:8px">No sales loaded for '+month+' yet. Add this month’s exports and the cash flow fills in.</div>'; $('reportTable').hidden=false; $('tileNote').innerHTML='Switch months with Prev / Next month.'; return; }
+      var h='';
+      h+='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Where the money is — '+month+'</span></div>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Location</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>';
+      h+='<tr><td>Cash in hand</td><td class="n">'+P+money(cashHand)+'</td><td>in the drawer now</td></tr>';
+      h+='<tr><td>In GCash / Maya</td><td class="n">'+P+money(ewallet)+'</td><td>e-wallet, available</td></tr>';
+      h+='<tr><td>Owed to you</td><td class="n">'+P+money(receivable)+'</td><td>card + Foodpanda, arrives later</td></tr>';
+      h+='<tr class="tot"><td>Net collected</td><td class="n">'+P+money(netIn)+'</td><td>gross '+P+money(grossIn)+' − fees '+P+money(feesTot)+'</td></tr>';
+      h+='</tbody></table></div>';
+      h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">What the cash is already spoken for</h3>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Flow</th><th class="n">Amount</th><th>Note</th></tr></thead><tbody>';
+      h+='<tr><td><b>Net money in</b></td><td class="n">'+P+money(netIn)+'</td><td>what actually landed</td></tr>';
+      h+='<tr><td>− Ingredients (restock)</td><td class="n">'+P+money(cogs)+'</td><td>cost of what you sold</td></tr>';
+      expLines.forEach(function(e){ h+='<tr><td>− '+e[0]+'</td><td class="n">'+P+money(e[1])+'</td><td>'+e[2]+'</td></tr>'; });
+      h+='<tr><td>− Tax set-aside</td><td class="n">'+P+money(taxReserve)+'</td><td>'+taxPct+'% — rate not set yet</td></tr>';
+      h+='<tr class="tot"><td>Free cash left with Ohlly’s</td><td class="n">'+P+money(freeCash)+'</td><td>safe to take out</td></tr>';
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='<b>Cash ≠ profit.</b> This shows what actually landed (net of fees) and what it’s already promised to. Of the net, '+P+money(liquidNow)+' is in hand / e-wallet now and '+P+money(receivable)+' is still coming from card / Foodpanda. Rent, electricity and water are ₱0 during the grace period, so salary is the main running cost. Switch months with Prev / Next month. <b>This is your cash view</b> (net of fees); the <b>Overall Report</b> shows profit before fees.';
+      return;
+    }
+    if(view==='stock' && current==='ohllys' && bus.reports){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var month=monthBar();
+      var reps=reportsForMonth(month), days=reps.length;
+      // PLACEHOLDER opening stock + par (in each ingredient's usage unit) — replace with real counts
+      var STOCK={
+        "Coffee beans":{open:5000,par:1500},"Milk":{open:20000,par:5000},
+        "Matcha":{open:500,par:150},"Matcha (premium)":{open:300,par:100},
+        "Honey":{open:2000,par:500},"Choco syrup":{open:1500,par:400},
+        "Caramel syrup":{open:1500,par:400},"Condensed milk":{open:1500,par:400},
+        "Strawberry jam":{open:3000,par:800},"Biscoff spread":{open:1000,par:300},
+        "Biscoff crackers":{open:100,par:30},"Cinnamon":{open:200,par:50},
+        "Cup":{open:500,par:150},"Sea salt foam":{open:1000,par:300},"Sea salt cream":{open:500,par:150}
+      };
+      // Pack size per purchase, in the ingredient's usage unit (only the ones we can confirm)
+      var PACK={ "Coffee beans":{size:1000,lbl:"1 kg"}, "Milk":{size:1000,lbl:"1 L"}, "Matcha":{size:200,lbl:"200 g"}, "Matcha (premium)":{size:80,lbl:"80 g"} };
+      var amtNum=function(s){ s=(''+s).trim(); var m=s.match(/^(\d+)\s*\/\s*(\d+)/); if(m) return parseInt(m[1],10)/parseInt(m[2],10); var n=parseFloat(s); return isNaN(n)?0:n; };
+      var amtUnit=function(s){ if(/tsp/i.test(s))return'tsp'; if(/pcs?/i.test(s)||/\bpc\b/i.test(s))return'pc'; if(/\bg\b/i.test(s))return'g'; return''; };
+      var fq=function(n,u){ return (u==='tsp'?(Math.round(n*10)/10):Math.round(n)); };
+      var usage={}, drinksMade=0;
+      reps.forEach(function(rp){ rp.order.forEach(function(o){ var rec=RECIPE[o[0]]; if(!rec) return; var q=o[1]; drinksMade+=q; rec.forEach(function(l){ var nm=l[0], u=amtUnit(l[1]); if(!usage[nm]) usage[nm]={unit:u, qty:0}; usage[nm].qty+=amtNum(l[1])*q; }); }); });
+      // merge in manually-logged ingredient usage (Ingredient Usage screen)
+      var loggedRows=0;
+      getUse(month).forEach(function(uu){ var nm=uu[0]; if(!nm) return; var amt=parseFloat((''+uu[1]).replace(/,/g,''))||0; if(amt<=0) return; var unit=(INGRATE[nm]?INGRATE[nm].unit:''); if(!usage[nm]) usage[nm]={unit:unit, qty:0}; if(!usage[nm].unit) usage[nm].unit=unit; usage[nm].qty+=amt; usage[nm].logged=(usage[nm].logged||0)+amt; loggedRows++; });
+      var rows=[];
+      Object.keys(usage).forEach(function(nm){ if(nm==='Water') return; var u=usage[nm], st=STOCK[nm]; var open=st?st.open:null, par=st?st.par:null, rem=st?(open-u.qty):null, pct=(st&&open)?rem/open:null; rows.push({nm:nm,unit:u.unit,used:u.qty,logged:u.logged||0,open:open,par:par,rem:rem,pct:pct,st:!!st}); });
+      rows.sort(function(a,b){ var pa=a.pct==null?2:a.pct, pb=b.pct==null?2:b.pct; return pa-pb; });
+      var reorder=rows.filter(function(r){ return r.st && r.rem<=r.par; });
+      var low=rows.length?rows[0]:null;
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Ingredients tracked</div><div class="v">'+rows.length+'</div><div class="s">drink stock only</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Drinks made</div><div class="v">'+drinksMade+'</div><div class="s">'+days+' days · '+month+'</div></div>';
+      g+='<div class="tile'+(reorder.length?'':' good')+'"><div class="k"><span class="dot d-red"></span>Need reorder</div><div class="v">'+reorder.length+'</div><div class="s">at / below par</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-green"></span>Lowest stock</div><div class="v" style="font-size:18px">'+(low&&low.st?low.nm:'—')+'</div><div class="s">'+(low&&low.st?(Math.max(0,Math.round(low.pct*100))+'% left'):'set stock')+'</div></div>';
+      $('tileGrid').innerHTML=g;
+      if(days===0){ $('reportTable').innerHTML='<div class="upempty" style="margin-top:8px">No sales loaded for '+month+' yet. Add this month’s exports and usage fills in.</div>'; $('reportTable').hidden=false; $('tileNote').innerHTML='Switch months with Prev / Next month.'; return; }
+      var h='';
+      if(reorder.length){
+        h+='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Reorder now — '+reorder.length+' item(s) at / below par</span></div>';
+        h+='<div class="rtwrap" style="margin-bottom:18px"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Remaining</th><th class="n">Par</th><th class="n">Top up ≈</th><th class="n">Buy</th></tr></thead><tbody>';
+        reorder.forEach(function(r){ var topup=r.open-r.rem; var pk=PACK[r.nm]; var buy = pk ? ('~'+Math.max(1,Math.ceil(topup/pk.size))+' × '+pk.lbl) : '<span style="color:var(--ink-faint)">set pack</span>'; h+='<tr><td>'+r.nm+'</td><td class="n" style="color:var(--red);font-weight:600">'+fq(r.rem,r.unit)+' '+r.unit+'</td><td class="n">'+fq(r.par,r.unit)+' '+r.unit+'</td><td class="n">'+fq(topup,r.unit)+' '+r.unit+'</td><td class="n">'+buy+'</td></tr>'; });
+        h+='</tbody></table></div>';
+      }
+      h+='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">All ingredients — '+month+'</span></div>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Used</th><th class="n">Opening</th><th class="n">Remaining</th><th class="n">Par</th><th>Status</th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        var remCol = r.st ? (r.rem<=r.par?'var(--red)':(r.pct<0.35?'var(--amber)':'var(--ink)')) : 'var(--ink)';
+        var status = !r.st ? '<span style="color:var(--ink-faint)">set stock</span>'
+          : (r.rem<=r.par ? '<span style="color:var(--red);font-weight:600">Reorder</span>'
+          : '<span style="color:var(--good);font-weight:600">OK</span>');
+        var usedCell = fq(r.used,r.unit)+' '+r.unit + (r.logged>0 ? '<span style="color:var(--ink-faint);font-size:11px"> · incl '+fq(r.logged,r.unit)+' logged</span>' : '');
+        h+='<tr><td>'+r.nm+'</td><td class="n">'+usedCell+'</td><td class="n">'+(r.st?fq(r.open,r.unit)+' '+r.unit:'—')+'</td><td class="n" style="color:'+remCol+'">'+(r.st?fq(r.rem,r.unit)+' '+r.unit:'—')+'</td><td class="n">'+(r.st?fq(r.par,r.unit)+' '+r.unit:'—')+'</td><td>'+status+'</td></tr>';
+      });
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='<b>Placeholder stock.</b> Opening + par levels here are made-up so you can see the layout — replace them with your real counts. <b>Used</b> = recipe amount × drinks sold <i>plus</i> anything you logged in <b>Ingredient Usage</b> (shown as “incl. logged”). The <b>Buy</b> column turns the top-up into packs using the pack sizes in Ingredient Prices &amp; Costs (rows without a confirmed pack say “set pack”). Only <b>drink ingredients</b> are tracked (food &amp; shakes are handled elsewhere). Switch months with Prev / Next month.';
+      return;
+    }
+    if(view==='spare' && current==='ohllys' && bus.reports){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var month=monthBar();
+      var reps=reportsForMonth(month), days=reps.length;
+      var amtNum=function(s){ s=(''+s).trim(); var m=s.match(/^(\d+)\s*\/\s*(\d+)/); if(m) return parseInt(m[1],10)/parseInt(m[2],10); var n=parseFloat(s); return isNaN(n)?0:n; };
+      var amtUnit=function(s){ if(/tsp/i.test(s))return'tsp'; if(/pcs?/i.test(s)||/\bpc\b/i.test(s))return'pc'; if(/\bg\b/i.test(s))return'g'; return''; };
+      var fq=function(n,u){ return (u==='tsp'?(Math.round(n*10)/10):Math.round(n)); };
+      var rate=function(n){ return (Math.round(n*1000)/1000); };
+      var usage={}, drinksMade=0;
+      reps.forEach(function(rp){ rp.order.forEach(function(o){ var rec=RECIPE[o[0]]; if(!rec) return; var q=o[1]; drinksMade+=q; rec.forEach(function(l){ var nm=l[0], u=amtUnit(l[1]); if(!usage[nm]) usage[nm]={unit:u, qty:0}; usage[nm].qty+=amtNum(l[1])*q; }); }); });
+      getUse(month).forEach(function(uu){ var nm=uu[0]; if(!nm) return; var amt=parseFloat((''+uu[1]).replace(/,/g,''))||0; if(amt<=0) return; var unit=(INGRATE[nm]?INGRATE[nm].unit:''); if(!usage[nm]) usage[nm]={unit:unit, qty:0}; if(!usage[nm].unit) usage[nm].unit=unit; usage[nm].qty+=amt; });
+      var rows=[], totalUsable=0;
+      Object.keys(usage).forEach(function(nm){ if(nm==='Water') return; var u=usage[nm]; var r=INGRATE[nm]?INGRATE[nm].rate:null; if(r==null) return; var amt=r*u.qty; totalUsable+=amt; rows.push({nm:nm,unit:u.unit,used:u.qty,rate:r,amt:amt}); });
+      rows.sort(function(a,b){ return b.amt-a.amt; });
+      var top=rows.length?rows[0]:null;
+      var g='';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Restock budget</div><div class="v">'+P+money(totalUsable)+'</div><div class="s">set aside by sales · '+month+'</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Ingredients</div><div class="v">'+rows.length+'</div><div class="s">used in drinks sold</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Biggest spend-back</div><div class="v" style="font-size:18px">'+(top?top.nm:'—')+'</div><div class="s">'+(top?P+money(top.amt):'—')+'</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Drinks made</div><div class="v">'+drinksMade+'</div><div class="s">'+days+' days · '+month+'</div></div>';
+      $('tileGrid').innerHTML=g;
+      if(days===0){ $('reportTable').innerHTML='<div class="upempty" style="margin-top:8px">No sales loaded for '+month+' yet. Add this month’s exports and the usable-fund figures fill in.</div>'; $('reportTable').hidden=false; $('tileNote').innerHTML='Switch months with Prev / Next month.'; return; }
+      var h='';
+      h+='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Usable per ingredient — '+month+'</span></div>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Used</th><th class="n">Cost rate</th><th class="n">Usable to rebuy</th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        h+='<tr><td>'+r.nm+'</td><td class="n">'+fq(r.used,r.unit)+' '+r.unit+'</td><td class="n">'+P+rate(r.rate)+'/'+r.unit+'</td><td class="n" style="color:var(--good);font-weight:600">'+P+money(r.amt)+'</td></tr>';
+      });
+      h+='<tr class="tot"><td>Total restock budget</td><td class="n"></td><td class="n"></td><td class="n">'+P+money(totalUsable)+'</td></tr>';
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='<b>Every drink you sell quietly sets aside each ingredient’s cost.</b> This pools that money per ingredient for the month — <b>how much your sales have already collected toward each one, i.e. what you can spend to buy the next batch.</b> It’s just cost rate × amount used (drinks sold, recipe × qty, plus anything logged in Ingredient Usage). The <b>'+P+money(totalUsable)+'</b> total is your drink-ingredient restock budget for '+month+' — it equals your drink COGS. Drink ingredients only; food &amp; shakes restock comes from their own cost. Switch months with Prev / Next month.';
+      return;
+    }
+    if(view==='matchnames'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var A=posAliasMap(), aliasKeys=Object.keys(A);
+      var g='';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Auto-matched</div><div class="v">'+Object.keys(ITEM).length+'</div><div class="s">menu items by exact name</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Rename rules</div><div class="v">'+aliasKeys.length+'</div><div class="s">POS name → menu</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Join key</div><div class="v" style="font-size:18px">Item name</div><div class="s">used on file import</div></div>';
+      $('tileGrid').innerHTML=g;
+      var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Rename rules — POS names that differ from your menu</span></div>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>POS item name</th><th>Becomes (menu)</th><th>Status</th></tr></thead><tbody>';
+      aliasKeys.sort().forEach(function(k){ var ok=ITEM[A[k]]!==undefined; h+='<tr><td>'+k+'</td><td>'+A[k]+'</td><td>'+(ok?'<span style="color:var(--good);font-weight:600">matched</span>':'<span style="color:var(--amber);font-weight:600">check</span>')+'</td></tr>'; });
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='When you import a POS export, each item name is matched to your menu. Most match on the exact name (HOT/ICED and “(spicy)”-type notes are ignored, so hot &amp; iced of a drink combine). The rows above are the renames where the POS spelling differs. If an import skips an item as “not on the menu,” tell me and I’ll add a rule here.';
+      return;
+    }
+    if(view==='expenselog'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false; $('dateBar').hidden=true;
+      renderExpenseLog();
+      return;
+    }
+    if(view==='uselog'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      renderUseLog();
+      return;
+    }
+    if(view==='deliverylog'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      mountUploader($('dateBar'),'pyu_delivery_files','Daily delivery files','No files added yet. Add each day’s delivery file here and it gets imported into the reports.');
+      $('tileGrid').innerHTML='';
+      var fields=[["Customer + address","who and where"],["Containers / gallons out","quantity delivered"],["Unit price → amount","price × qty"],["Truck / plate no.","which truck"],["Paid now / on terms","clears now, or becomes a receivable"]];
+      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Delivery Log — field</th><th>What it holds</th></tr></thead><tbody>';
+      fields.forEach(function(f){ h+='<tr><td>'+f[0]+'</td><td>'+f[1]+'</td></tr>'; });
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='The Delivery Log is the single daily source for PYU — Record of Sales, Truck Trips and Receivables are all derived from it. Use <b>+ Add file</b> (top right) to add each day’s file.';
+      return;
+    }
+    if(view==='ingredients'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Ingredients</div><div class="v">'+INGREDIENTS.length+'</div><div class="s">in the list</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Priciest per g</div><div class="v" style="font-size:18px">Matcha (Nishide)</div><div class="s">'+P+'22.5 / g</div></div>';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Milk used in drinks</div><div class="v" style="font-size:18px">Oat Milk</div><div class="s">'+P+'0.18 / g</div></div>';
+      $('tileGrid').innerHTML=g;
+      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Paid</th><th class="n">Costing</th><th class="n">Unit cost</th><th class="n">Pack size</th></tr></thead><tbody>';
+      INGREDIENTS.forEach(function(x){ var pk=(x[4]||'').trim(); var pkCell = (pk==='?'||pk==='~1 L ?') ? '<span style="color:var(--ink-faint)">'+(pk==='?'?'confirm':pk)+'</span>' : pk; h+='<tr><td>'+x[0]+'</td><td class="n">'+x[1]+'</td><td class="n">'+x[2]+'</td><td class="n">'+x[3]+'</td><td class="n">'+pkCell+'</td></tr>'; });
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='All in PHP. Costing = the padded rate used in recipes. Drinks are costed on Oat Milk (₱0.18/g). <b>Pack size</b> = how much you get per purchase — it lets Stock Used + Reorder say “buy N packs.” Rows marked <i>confirm</i> need the grams / mL / pcs per pack from you.';
+      return;
+    }
+    if(view==='costing'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      showFilter();
+      var names=Object.keys(ITEM).filter(inFilter);
+      var rows=names.map(function(nm){ var it=ITEM[nm]; var cost=it[1],price=it[0]; var fc=price?100*cost/price:0; return [nm,cost,price,price-cost,fc, RECIPE[nm]?'recipe':'estimate']; });
+      rows.sort(function(a,b){ return b[4]-a[4]; });
+      var favg=0; rows.forEach(function(r){ favg+=r[4]; }); favg=rows.length?favg/rows.length:0;
+      var worst=rows[0]||['—',0,0,0,0], best=rows[rows.length-1]||['—',0,0,0,0];
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Items costed</div><div class="v">'+rows.length+'</div><div class="s">drinks + food</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Avg food cost</div><div class="v">'+favg.toFixed(1)+'%</div><div class="s">target ≤ 35%</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Highest FC%</div><div class="v" style="font-size:18px">'+worst[0]+'</div><div class="s">'+worst[4].toFixed(1)+'%</div></div>';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Best margin</div><div class="v" style="font-size:18px">'+best[0]+'</div><div class="s">'+best[4].toFixed(1)+'% FC</div></div>';
+      $('tileGrid').innerHTML=g;
+      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Cost</th><th class="n">Price</th><th class="n">Gross</th><th class="n">FC%</th><th>Source</th></tr></thead><tbody>';
+      rows.forEach(function(r){ var col=r[4]>=50?'var(--red)':(r[4]>=40?'var(--amber)':'var(--good)'); h+='<tr><td>'+r[0]+'</td><td class="n">'+P+money(r[1])+'</td><td class="n">'+P+fmt(r[2])+'</td><td class="n">'+P+money(r[3])+'</td><td class="n" style="color:'+col+';font-weight:600">'+r[4].toFixed(1)+'%</td><td>'+(r[5]==='recipe'?'recipe':'<span style="color:var(--ink-faint)">given cost</span>')+'</td></tr>'; });
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML='Every item’s cost and margin, worst food-cost first. Drinks are recipe-costed; food &amp; shakes use their given cost (no recipe needed — production is handled elsewhere).';
+      return;
+    }
+    if(view==='overall'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var who = current==='pyu' ? 'PYU' : "Ohlly's";
+      var sales=0, days=0, expLines=[];
+      if(bus.reports){
+        var month=monthBar();
+        var reps=reportsForMonth(month); days=reps.length;
+        var agg={};
+        reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
+        var order=Object.keys(agg).map(function(k){ return [k,agg[k]]; });
+        var c=computeReport(order), gc=groupCOGS(order);
+        sales=c.sales;
+        expLines.push(["Ingredients — Coffee & Matcha", gc.cm.cogs, "drinks COGS"]);
+        expLines.push(["Ingredients — Food & Shakes", gc.fs.cogs, "food & shakes COGS"]);
+        getExpenses(month).forEach(function(e){ var amt=parseFloat((''+e[3]).replace(/,/g,''))||0; expLines.push([e[1]||'Expense', amt, e[2]||e[0]||'']); });
+      } else {
+        var hist=bus.dailyHist||[]; hist.forEach(function(x){ sales+=x.sales; }); days=hist.length;
+        (((bus.finance)||{}).expenses||[]).forEach(function(e){ expLines.push([e[0], e[1], "sample"]); });
+      }
+      var totalExp=0; expLines.forEach(function(e){ totalExp+=e[1]; });
+      var left=sales-totalExp;
+      var g='';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Total sales</div><div class="v">'+P+fmt(Math.round(sales))+'</div><div class="s">'+days+' days · money in</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Total expenses</div><div class="v">'+P+money(totalExp)+'</div><div class="s">money out</div></div>';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Left with '+who+'</div><div class="v">'+P+money(left)+'</div><div class="s">sales − expenses</div></div>';
+      $('tileGrid').innerHTML=g;
+      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Line</th><th class="n">Amount</th><th>Note</th></tr></thead><tbody>';
+      h+='<tr><td><b>Total sales</b> (money in)</td><td class="n">'+P+money(sales)+'</td><td>from the sales reports</td></tr>';
+      expLines.forEach(function(e){ h+='<tr><td>− '+e[0]+'</td><td class="n">'+P+money(e[1])+'</td><td>'+e[2]+'</td></tr>'; });
+      h+='<tr class="tot"><td>Money left with '+who+'</td><td class="n">'+P+money(left)+'</td><td>what you keep</td></tr>';
+      h+='</tbody></table></div>';
+      $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+      $('tileNote').innerHTML=(bus.reports?('<b>'+month+'</b> — '+days+' sales day(s) loaded. Sales and expenses are both from '+month+'; switch months with Prev / Next month. Ingredients counted as COGS above. '):('Period to date ('+days+' days). '))+'Update the Expense Log to keep this exact. <b>This is your profit view</b> (sales booked − costs). For the cash version — after card / Foodpanda fees and where the money physically sits — see <b>Cash Flow</b>.';
+      return;
+    }
+    if(view==='monthly'){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      if(bus.reports){
+        var month=monthBar();
+        var reps=reportsForMonth(month), days=reps.length, agg={};
+        reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
+        getManual(month).forEach(function(mm){ if(mm[0]) agg[mm[0]]=(agg[mm[0]]||0)+(parseFloat(mm[1])||0); });
+        var order=filterOrder(Object.keys(agg).map(function(k){ return [k,agg[k]]; }));
+        var c=computeReport(order);
+        showFilter();
+        var g='';
+        g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Total sales</div><div class="v">'+P+fmt(Math.round(c.sales))+'</div><div class="s">'+c.units+' units · '+days+' days</div></div>';
+        g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Total gross</div><div class="v">'+P+money(c.gross)+'</div><div class="s">before opex</div></div>';
+        g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Total COGS</div><div class="v">'+P+money(c.cogs)+'</div><div class="s">restock value</div></div>';
+        g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Food cost</div><div class="v">'+c.fc.toFixed(1)+'%</div><div class="s">target ≤ 35%</div></div>';
+        $('tileGrid').innerHTML=g;
+        var manualM=getManual(month);
+        var h='';
+        if(!order.length){
+          h+='<div class="upempty" style="margin-bottom:10px">No sales loaded for '+month+' yet — add this month’s exports, or add items manually below.</div>';
+        } else {
+          if(itemFilter==='all'){
+            var gc=groupCOGS(order), tcog=gc.cm.cogs+gc.fs.cogs;
+            h+='<div class="rtwrap" style="margin-bottom:14px"><table class="rt"><thead><tr><th>COGS by group</th><th class="n">Units</th><th class="n">Sales</th><th class="n">COGS</th><th class="n">% of COGS</th></tr></thead><tbody>';
+            h+='<tr><td>Coffee &amp; Matcha</td><td class="n">'+gc.cm.units+'</td><td class="n">'+P+money(gc.cm.sales)+'</td><td class="n">'+P+money(gc.cm.cogs)+'</td><td class="n">'+(tcog?(100*gc.cm.cogs/tcog).toFixed(1):'0.0')+'%</td></tr>';
+            h+='<tr><td>Food &amp; Shakes</td><td class="n">'+gc.fs.units+'</td><td class="n">'+P+money(gc.fs.sales)+'</td><td class="n">'+P+money(gc.fs.cogs)+'</td><td class="n">'+(tcog?(100*gc.fs.cogs/tcog).toFixed(1):'0.0')+'%</td></tr>';
+            h+='<tr class="tot"><td>Total COGS</td><td class="n">'+(gc.cm.units+gc.fs.units)+'</td><td class="n">'+P+money(gc.cm.sales+gc.fs.sales)+'</td><td class="n">'+P+money(tcog)+'</td><td class="n">100%</td></tr>';
+            h+='</tbody></table></div>';
+          }
+          h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Total Qty</th><th class="n">Total Sales</th><th class="n">Total COGS</th><th class="n">Total Gross</th><th class="n">FC%</th></tr></thead><tbody>';
+          c.rows.forEach(function(x){ h+='<tr><td>'+x[0]+'</td><td class="n">'+x[1]+'</td><td class="n">'+P+money(x[2])+'</td><td class="n">'+P+money(x[3])+'</td><td class="n">'+P+money(x[4])+'</td><td class="n">'+x[5].toFixed(1)+'%</td></tr>'; });
+          h+='<tr class="tot"><td>Total</td><td class="n">'+c.units+'</td><td class="n">'+P+money(c.sales)+'</td><td class="n">'+P+money(c.cogs)+'</td><td class="n">'+P+money(c.gross)+'</td><td class="n">'+c.fc.toFixed(1)+'%</td></tr>';
+          h+='</tbody></table></div>';
+        }
+        h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Add items sold manually</h3>';
+        h+='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">For items missing from this month’s exports — they merge into the totals for <b>'+month+'</b>.</div>';
+        h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><select class="exin" id="manItemM" style="flex:1;min-width:200px;border:1px solid var(--line-strong)">'+itemOptions()+'</select><input class="exin exn" id="manQtyM" value="1" style="max-width:70px;border:1px solid var(--line-strong)"><button class="upbtn" id="manAddM">+ Add</button></div>';
+        if(manualM.length){
+          h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Manually added</th><th class="n">Qty</th><th class="n">Sales</th><th class="n">COGS</th><th></th></tr></thead><tbody id="manBodyM">';
+          manualM.forEach(function(m,i){ var it=ITEM[m[0]]||[0,0]; var q=parseFloat(m[1])||0; h+='<tr data-i="'+i+'"><td>'+m[0]+'</td><td><input class="exin exn manqM" value="'+esc(m[1])+'" style="max-width:60px"></td><td class="n">'+P+money(it[0]*q)+'</td><td class="n">'+P+money(it[1]*q)+'</td><td><button class="exdel" title="Remove">&times;</button></td></tr>'; });
+          h+='</tbody></table></div>';
+        }
+        h+=fpSectionHTML(month);
+        $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+        wireFp(month);
+        if($('manAddM')) $('manAddM').addEventListener('click', function(){ var nm=$('manItemM').value, q=parseFloat($('manQtyM').value)||0; if(!nm||q<=0){ return; } var rows=getManual(month); rows.push([nm,q]); saveManual(month,rows); showView(curIt); });
+        var mbM=$('manBodyM');
+        if(mbM){
+          Array.prototype.forEach.call(mbM.querySelectorAll('.manqM'), function(inp){ inp.addEventListener('change', function(){ var rows=getManual(month); rows[+inp.closest('tr[data-i]').getAttribute('data-i')][1]=parseFloat(inp.value)||0; saveManual(month,rows); showView(curIt); }); });
+          Array.prototype.forEach.call(mbM.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=getManual(month); rows.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); saveManual(month,rows); showView(curIt); }); });
+        }
+        $('tileNote').innerHTML=month+' — in-store compiled from '+days+' day(s), plus anything added manually below. Foodpanda tracked separately. Switch months with Prev / Next month. Net profit needs the month’s expenses.';
+      } else {
+        var hist=bus.dailyHist||[], ts=0,tu=0;
+        hist.forEach(function(x){ ts+=x.sales; tu+=x.units; });
+        var g2='';
+        g2+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Total sales</div><div class="v">'+P+fmt(Math.round(ts))+'</div><div class="s">'+tu+' units · '+hist.length+' days</div></div>';
+        g2+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Daily average</div><div class="v">'+P+fmt(Math.round(ts/hist.length))+'</div><div class="s">per day</div></div>';
+        $('tileGrid').innerHTML=g2;
+        var h2='<div class="rtwrap"><table class="rt"><thead><tr><th>Date</th><th class="n">Sales</th><th class="n">Units</th></tr></thead><tbody>';
+        hist.forEach(function(x){ h2+='<tr><td>'+x.lbl+'</td><td class="n">'+P+fmt(Math.round(x.sales))+'</td><td class="n">'+x.units+'</td></tr>'; });
+        h2+='<tr class="tot"><td>Total</td><td class="n">'+P+fmt(Math.round(ts))+'</td><td class="n">'+tu+'</td></tr>';
+        h2+='</tbody></table></div>';
+        $('reportTable').innerHTML=h2; $('reportTable').hidden=false;
+        $('tileNote').innerHTML='Month compiled from daily deliveries. Sample data.';
+      }
+      return;
+    }
+    if(view==='report' && bus.reports){
+      $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      $('dateBar').hidden=false;
+      $('dateBar').innerHTML='<div class="datectl"><div class="drhead"><input id="dateSearch" class="datesearch" type="search" placeholder="Search date… (e.g. 20, Sat)" autocomplete="off"><button class="upbtn" id="addFileBtn">+ Add file</button></div><div class="datelist" id="dateList"></div><div class="uplist" id="upList" style="margin-top:10px"></div></div><input type="file" id="fileInput" accept=".csv,.htm,.html,.xls,.xlsx,.pdf,.png,.jpg" hidden>';
+      wireImport();
+      if(!bus.reports.length){
+        $('tileGrid').innerHTML=''; $('filterBar').hidden=true;
+        $('reportTable').innerHTML='<div class="upempty" style="margin-top:8px">No days loaded yet. Tap <b>+ Add file</b> above to import a POS “Category Sold” export — the day fills in automatically. You can also add items manually once a day exists.</div>';
+        $('reportTable').hidden=false;
+        $('tileNote').innerHTML='Import your first POS export to begin — then Monthly, Cash Flow and the rest fill in from it.';
+        return;
+      }
+      var dates=bus.reports.map(function(r){return r.d;});
+      if(dates.indexOf(selDate)<0) selDate=bus.reports[bus.reports.length-1].d;
+      var dl=$('dateList'), chips='';
+      for(var i=bus.reports.length-1;i>=0;i--){ var r=bus.reports[i]; chips+='<button class="datechip'+(r.d===selDate?' active':'')+'" data-d="'+r.d+'">'+r.d+(r.live?' <span class="livedot">live</span>':'')+'</button>'; }
+      dl.innerHTML=chips;
+      $('dateSearch').addEventListener('input', function(){ var q=this.value.toLowerCase(); Array.prototype.forEach.call(dl.children,function(c){ c.hidden = c.getAttribute('data-d').toLowerCase().indexOf(q)<0; }); });
+      dl.addEventListener('click', function(e){ var c=e.target.closest('[data-d]'); if(!c) return; selDate=c.getAttribute('data-d'); Array.prototype.forEach.call(dl.children,function(x){x.classList.remove('active');}); c.classList.add('active'); renderReportBody(bus); });
+      showFilter();
+      renderReportBody(bus);
+      return;
+    }
+    $('configPanel').hidden=true; $('tilePanel').hidden=false;
+    var g=''; (bus.tiles||[]).forEach(function(t){ g+='<div class="tile'+(t.good?' good':'')+'"><div class="k"><span class="dot '+t.dot+'"></span>'+t.k+'</div><div class="v">'+t.v+'</div><div class="s">'+t.s+'</div></div>'; });
+    $('tileGrid').innerHTML=g;
+    $('reportTable').innerHTML=''; $('reportTable').hidden=true;
+    $('tileNote').innerHTML = view==='cash'
+      ? 'Cash and profit are different. This screen shows where the money is, not just what you earned.'
+      : 'Sample figures. Connect your data sources to see live numbers here.';
+  }
+
+  // Ohlly's items sold on Foodpanda, per period — [name, qty, Foodpanda price]
+  var FP_BY_DATE = {};
+  var FP_PRICE = {"Sea Salt Matcha":275,"Matcha Latte":250,"Sea Salt Caramel":245,"Honey Cinnamon Oat":245,"Spanish Latte":225,"Mocha":225,"Mojos":225,"Ham and Cheese":187,"Alfredo Pasta":350,"Dirty Matcha":285,"Crispy Chicken Fillet":243,"Tuna Sandwich":187,"Double Cheese Burger":243};
+  function getFpManual(date){ try{ var all=JSON.parse(LS.get('ohlly_fp_manual')||'{}'); if(all && all[date]) return all[date]; }catch(e){} return []; }
+  function saveFpManual(date, rows){ try{ var all={}; try{all=JSON.parse(LS.get('ohlly_fp_manual')||'{}');}catch(e){} all[date]=rows; LS.set('ohlly_fp_manual', JSON.stringify(all)); }catch(e){} }
+  function fpSectionHTML(key){
+    var items=(FP_BY_DATE[key]||[]).concat(getFpManual(key)), manual=getFpManual(key);
+    var rows=items.map(function(it){ var nm=it[0], qty=parseFloat(it[1])||0, price=parseFloat(it[2])||0, cost=(ITEM[nm]?ITEM[nm][1]:0); var sales=price*qty, cogs=cost*qty; return {nm:nm,qty:qty,price:price,sales:sales,cogs:cogs,gross:sales-cogs,fc:sales?100*cogs/sales:0}; });
+    rows.sort(function(a,b){ return b.sales-a.sales; });
+    var tQ=0,tS=0,tC=0,tG=0; rows.forEach(function(r){ tQ+=r.qty; tS+=r.sales; tC+=r.cogs; tG+=r.gross; });
+    var fee=tS*0.285, net=tS*0.715, keep=net-tC;
+    var h='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Foodpanda Sales</h3>';
+    if(rows.length){
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">FP Price</th><th class="n">Sales</th><th class="n">COGS</th><th class="n">Gross</th><th class="n">FC%</th></tr></thead><tbody>';
+      rows.forEach(function(r){ h+='<tr><td>'+r.nm+'</td><td class="n">'+r.qty+'</td><td class="n">'+P+fmt(r.price)+'</td><td class="n">'+P+money(r.sales)+'</td><td class="n">'+P+money(r.cogs)+'</td><td class="n">'+P+money(r.gross)+'</td><td class="n">'+r.fc.toFixed(1)+'%</td></tr>'; });
+      h+='<tr class="tot"><td>Total</td><td class="n">'+tQ+'</td><td class="n"></td><td class="n">'+P+money(tS)+'</td><td class="n">'+P+money(tC)+'</td><td class="n">'+P+money(tG)+'</td><td class="n">'+(tS?(100*tC/tS).toFixed(1):'0.0')+'%</td></tr>';
+      h+='</tbody></table></div>';
+      h+='<div class="rtwrap" style="margin-top:12px"><table class="rt"><tbody>';
+      h+='<tr><td>Foodpanda gross</td><td class="n">'+P+money(tS)+'</td></tr>';
+      h+='<tr><td>− Commission + tax (28.5%)</td><td class="n">'+P+money(fee)+'</td></tr>';
+      h+='<tr><td>Net after fee (71.5%)</td><td class="n">'+P+money(net)+'</td></tr>';
+      h+='<tr><td>− COGS (cost of goods)</td><td class="n">'+P+money(tC)+'</td></tr>';
+      h+='<tr class="tot"><td>Net kept (after fee &amp; cost)</td><td class="n">'+P+money(keep)+'</td></tr>';
+      h+='</tbody></table></div>';
+    } else {
+      h+='<div class="upempty" style="margin-bottom:8px">No Foodpanda items for '+key+' yet — add them below.</div>';
+    }
+    h+='<div style="font-size:12.5px;color:var(--ink-soft);margin:12px 0 6px">Add a Foodpanda item sold (uses Foodpanda’s marked-up price — it auto-fills if known):</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><select class="exin" id="fpItem" style="flex:1;min-width:180px;border:1px solid var(--line-strong)">'+itemOptions()+'</select><input class="exin exn" id="fpQty" value="1" style="max-width:56px;border:1px solid var(--line-strong)"><span style="color:var(--ink-soft)">₱</span><input class="exin exn" id="fpPrice" placeholder="FP price" style="max-width:88px;border:1px solid var(--line-strong)"><button class="upbtn" id="fpAdd">+ Add</button></div>';
+    if(manual.length){
+      h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Added to Foodpanda</th><th class="n">Qty</th><th class="n">FP ₱</th><th></th></tr></thead><tbody id="fpManBody">';
+      manual.forEach(function(m,i){ h+='<tr data-i="'+i+'"><td>'+m[0]+'</td><td><input class="exin exn fpmq" value="'+esc(m[1])+'" style="max-width:55px"></td><td><input class="exin exn fpmp" value="'+esc(m[2])+'" style="max-width:70px"></td><td><button class="exdel" title="Remove">&times;</button></td></tr>'; });
+      h+='</tbody></table></div>';
+    }
+    h+='<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px">Foodpanda uses marked-up prices. Sales/COGS/Gross are before the fee; the summary applies the 28.5% and your cost. Ohlly’s items only.</div>';
+    return h;
+  }
+  function wireFp(key){
+    var sel=$('fpItem');
+    if(sel) sel.addEventListener('change', function(){ if($('fpPrice')){ var pr=FP_PRICE[sel.value]; $('fpPrice').value=(pr!=null?pr:''); } });
+    if($('fpAdd')) $('fpAdd').addEventListener('click', function(){ var nm=$('fpItem').value, q=parseFloat($('fpQty').value)||0, pr=parseFloat($('fpPrice').value)||0; if(!nm||q<=0||pr<=0){ return; } var rows=getFpManual(key); rows.push([nm,q,pr]); saveFpManual(key,rows); showView(curIt); });
+    var fb=$('fpManBody');
+    if(fb){
+      Array.prototype.forEach.call(fb.querySelectorAll('.fpmq'), function(inp){ inp.addEventListener('change', function(){ var rows=getFpManual(key); rows[+inp.closest('tr[data-i]').getAttribute('data-i')][1]=parseFloat(inp.value)||0; saveFpManual(key,rows); showView(curIt); }); });
+      Array.prototype.forEach.call(fb.querySelectorAll('.fpmp'), function(inp){ inp.addEventListener('change', function(){ var rows=getFpManual(key); rows[+inp.closest('tr[data-i]').getAttribute('data-i')][2]=parseFloat(inp.value)||0; saveFpManual(key,rows); showView(curIt); }); });
+      Array.prototype.forEach.call(fb.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=getFpManual(key); rows.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); saveFpManual(key,rows); showView(curIt); }); });
+    }
+  }
+  function getManual(date){ try{ var all=JSON.parse(LS.get('ohlly_manual')||'{}'); if(all && all[date]) return all[date]; }catch(e){} return []; }
+  function saveManual(date, rows){ try{ var all={}; try{all=JSON.parse(LS.get('ohlly_manual')||'{}');}catch(e){} all[date]=rows; LS.set('ohlly_manual', JSON.stringify(all)); }catch(e){} }
+  var MENU_GROUPS = [
+    ["COFFEE", ["Americano","Flat White","Caffe Latte","Cappuccino","Mocha","Spanish Latte","Honey Cinnamon Oat","Sea Salt Caramel","Biscoff Latte","Salted Banana Latte","Double Shot Espresso"]],
+    ["MATCHA", ["Matcha Latte","Strawberry Matcha","Sea Salt Matcha","Dirty Matcha","Biscoff Matcha","Banana Bread Matcha"]],
+    ["NON-CAFFEINE", ["Mango Shake","Strawberry Shake","Chocolate Shake"]],
+    ["ALL DAY SILOG", ["Hotdog Silog","Beef Franks","Hungarian Silog","Spam","Tocino Silog","Tapa","Bangsilog","Corned Beef"]],
+    ["SANDWICHES", ["Tuna Sandwich","Crispy Chicken Fillet","Ham and Cheese","Ham and Egg","Double Cheese Burger","Chicken Burger"]],
+    ["OFF THE GRILL", ["Alfredo Pasta","Spaghetti w/ Meatballs","Mojos","French Fries","Chicken Wings"]]
+  ];
+  var MENU_DISP = {"Tocino Silog":"Tocino/Chorizo Silog"};
+  function itemOptions(){
+    var o='<option value="">— pick an item —</option>', seen={};
+    MENU_GROUPS.forEach(function(g){ var inner=''; g[1].forEach(function(nm){ if(ITEM[nm]!=null){ inner+='<option value="'+esc(nm)+'">'+esc(MENU_DISP[nm]||nm)+'</option>'; seen[nm]=1; } }); if(inner) o+='<optgroup label="'+g[0]+'">'+inner+'</optgroup>'; });
+    var extra=''; Object.keys(ITEM).forEach(function(nm){ if(!seen[nm]) extra+='<option value="'+esc(nm)+'">'+esc(nm)+'</option>'; });
+    if(extra) o+='<optgroup label="OTHER">'+extra+'</optgroup>';
+    return o;
+  }
+  function renderReportBody(bus){
+    var r=null; bus.reports.forEach(function(x){ if(x.d===selDate) r=x; });
+    if(!r) return;
+    var manual=getManual(r.d);
+    var c=computeReport(filterOrder(r.order.concat(manual)));
+    var g='';
+    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Sales</div><div class="v">'+P+fmt(Math.round(c.sales))+'</div><div class="s">'+c.units+' units · '+r.d+'</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Gross profit</div><div class="v">'+P+money(c.gross)+'</div><div class="s">before opex</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>COGS</div><div class="v">'+P+money(c.cogs)+'</div><div class="s">from recipe costs</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Food cost</div><div class="v">'+c.fc.toFixed(1)+'%</div><div class="s">target ≤ 35%</div></div>';
+    $('tileGrid').innerHTML=g;
+    var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Sales</th><th class="n">COGS</th><th class="n">Gross</th><th class="n">FC%</th></tr></thead><tbody>';
+    c.rows.forEach(function(x){ h+='<tr><td>'+x[0]+'</td><td class="n">'+x[1]+'</td><td class="n">'+P+money(x[2])+'</td><td class="n">'+P+money(x[3])+'</td><td class="n">'+P+money(x[4])+'</td><td class="n">'+x[5].toFixed(1)+'%</td></tr>'; });
+    h+='<tr class="tot"><td>Total</td><td class="n">'+c.units+'</td><td class="n">'+P+money(c.sales)+'</td><td class="n">'+P+money(c.cogs)+'</td><td class="n">'+P+money(c.gross)+'</td><td class="n">'+c.fc.toFixed(1)+'%</td></tr>';
+    h+='</tbody></table></div>';
+    h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Add items sold manually</h3>';
+    h+='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">For items you didn’t export — pick one, set the quantity, Add. They merge into the totals above for <b>'+r.d+'</b>.</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><select class="exin" id="manItem" style="flex:1;min-width:200px;border:1px solid var(--line-strong)">'+itemOptions()+'</select><input class="exin exn" id="manQty" value="1" style="max-width:70px;border:1px solid var(--line-strong)"><button class="upbtn" id="manAdd">+ Add</button></div>';
+    if(manual.length){
+      h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Manually added</th><th class="n">Qty</th><th class="n">Sales</th><th class="n">COGS</th><th></th></tr></thead><tbody id="manBody">';
+      manual.forEach(function(m,i){ var it=ITEM[m[0]]||[0,0]; var q=parseFloat(m[1])||0; h+='<tr data-i="'+i+'"><td>'+m[0]+'</td><td><input class="exin exn manq" value="'+esc(m[1])+'" style="max-width:60px"></td><td class="n">'+P+money(it[0]*q)+'</td><td class="n">'+P+money(it[1]*q)+'</td><td><button class="exdel" title="Remove">&times;</button></td></tr>'; });
+      h+='</tbody></table></div>';
+    }
+    h+=fpSectionHTML(r.d);
+    $('reportTable').innerHTML=h; $('reportTable').hidden=false;
+    wireFp(r.d);
+    if($('manAdd')) $('manAdd').addEventListener('click', function(){ var nm=$('manItem').value, q=parseFloat($('manQty').value)||0; if(!nm||q<=0){ return; } var rows=getManual(r.d); rows.push([nm,q]); saveManual(r.d,rows); renderReportBody(bus); });
+    var mb=$('manBody');
+    if(mb){
+      Array.prototype.forEach.call(mb.querySelectorAll('.manq'), function(inp){ inp.addEventListener('change', function(){ var rows=getManual(r.d); var i=+inp.closest('tr[data-i]').getAttribute('data-i'); rows[i][1]=parseFloat(inp.value)||0; saveManual(r.d,rows); renderReportBody(bus); }); });
+      Array.prototype.forEach.call(mb.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=getManual(r.d); rows.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); saveManual(r.d,rows); renderReportBody(bus); }); });
+    }
+    $('tileNote').innerHTML = (r.live?'Live data — '+r.d+'.':'Sample data for '+r.d+'.')+' <b>+ Add file</b> (top) imports a POS “Category Sold” export and auto-fills the day — upload each category file and they fold together. <b>Add items sold manually</b> covers anything not in an export. '+(fpSectionHTML(r.d)?'Foodpanda is tracked separately below. ':'')+'Net profit needs the day’s expenses.';
+  }
+
+  navRoot.addEventListener('click', function(e){
+    var btn=e.target.closest('[data-id]'); if(!btn) return;
+    var g=btn.getAttribute('data-group');
+    if(g){ var box=$(g); var open=box.classList.toggle('open'); btn.setAttribute('aria-expanded', open?'true':'false'); }
+    setActive(btn); showView(reg[btn.getAttribute('data-id')]);
+  });
+
+  function loadBusiness(key){
+    current=key; selDate=null; weekView=null; itemFilter='all';
+    var bus=BUS[key];
+    $('brandName').textContent=bus.brand;
+    $('brandTag').textContent=bus.tag;
+    $('acctIco').innerHTML=svg(bus.acct.icon);
+    $('acctName').innerHTML=bus.acct.name;
+    $('acctSub').innerHTML=bus.acct.sub;
+    renderNav(bus);
+    var first=navRoot.querySelector('.navitem');
+    setActive(first); showView(bus.nav[0].items[0]);
+    renderAcctOpts();
+  }
+
+  function renderAcctOpts(){
+    var order=['ohllys','pyu'].filter(function(k){ return !BIZ.length || BIZ.indexOf(k)>=0; }); if(!order.length) order=['ohllys'];
+    var html='';
+    order.forEach(function(key){
+      var b=BUS[key];
+      html+='<button class="acctopt'+(key===current?' active':'')+'" data-bus="'+key+'"><span class="ico">'+svg(b.acct.icon)+'</span><span class="who"><b>'+b.acct.name+'</b><small>'+b.acct.sub+'</small></span><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-11"/></svg></span></button>';
+    });
+    html+='<button class="acctopt" data-signout="1" style="margin-top:4px;border-top:1px solid var(--line)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span><span class="who"><b>Sign out</b><small>end this session</small></span></button>';
+    $('acctOpts').innerHTML=html;
+  }
+
+  var acctBtn=$('acctBtn'), acctMenu=$('acctMenu');
+  function closeMenu(){ acctMenu.hidden=true; acctBtn.setAttribute('aria-expanded','false'); }
+  acctBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    var open=acctMenu.hidden;
+    acctMenu.hidden=!open; acctBtn.setAttribute('aria-expanded', open?'true':'false');
+  });
+  $('acctOpts').addEventListener('click', function(e){
+    var so=e.target.closest('[data-signout]'); if(so){ closeMenu(); signOut(); return; }
+    var opt=e.target.closest('[data-bus]'); if(!opt) return;
+    loadBusiness(opt.getAttribute('data-bus')); closeMenu();
+  });
+  document.addEventListener('click', function(e){ if(!e.target.closest('.acctwrap')) closeMenu(); });
+
+  try{ $('topDate').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }catch(e){}
+
+  // ---- Auth + boot (Supabase email + password) ----
+  var SUPA_URL='https://nygasvzaseirnhupdwqu.supabase.co';
+  var SUPA_KEY='sb_publishable_qAl41VaKm4FfEkAZ6-D5Kg_NQ2drzXz';
+  var authMode='in';
+  function setAuthMsg(t,err){ var m=$('authMsg'); if(!m) return; m.textContent=t||''; m.style.color=err?'var(--red)':'var(--ink-soft)'; }
+  function updateAuthLabels(){ var b=$('authBtn'), s=$('authSwitch'); if(b) b.textContent=authMode==='in'?'Sign in':'Create account'; if(s) s.textContent=authMode==='in'?'New here? Create an account':'Have an account? Sign in'; }
+  function showLogin(){ var o=$('authOverlay'); if(o) o.hidden=false; var e=$('authEmail'); if(e){ try{ e.focus(); }catch(x){} } }
+  function hideLogin(){ var o=$('authOverlay'); if(o) o.hidden=true; }
+  function doAuth(){
+    if(!SB) return;
+    var email=(($('authEmail')||{}).value||'').trim(), pass=(($('authPass')||{}).value||'');
+    if(!email||!pass){ setAuthMsg('Enter your email and password.', true); return; }
+    var b=$('authBtn'); if(b) b.disabled=true;
+    setAuthMsg(authMode==='in'?'Signing in…':'Creating your account…', false);
+    var p = authMode==='in' ? SB.auth.signInWithPassword({email:email,password:pass}) : SB.auth.signUp({email:email,password:pass});
+    p.then(function(res){
+      if(b) b.disabled=false;
+      if(res && res.error){ setAuthMsg(res.error.message||'Something went wrong.', true); return; }
+      if(authMode==='up' && !(res.data && res.data.session)){ setAuthMsg('Account created — check your email to confirm, then sign in.', false); authMode='in'; updateAuthLabels(); return; }
+      SESSION = res.data && res.data.session;
+      afterLogin();
+    }, function(){ if(b) b.disabled=false; setAuthMsg('Network error — please try again.', true); });
+  }
+  function wireAuth(){
+    var sw=$('authSwitch'); if(sw) sw.addEventListener('click', function(e){ e.preventDefault(); authMode=(authMode==='in'?'up':'in'); updateAuthLabels(); setAuthMsg('',false); });
+    var b=$('authBtn'); if(b) b.addEventListener('click', doAuth);
+    ['authEmail','authPass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown', function(e){ if(e.key==='Enter') doAuth(); }); });
+  }
+  function loadMemberships(){
+    return SB.from('memberships').select('business,role').then(function(res){ BIZ=((((res||{}).data))||[]).map(function(r){ return r.business; }); }, function(){ BIZ=[]; });
+  }
+  function afterLogin(){
+    hideLogin();
+    loadMemberships().then(function(){ return loadAllData(); }).then(function(){
+      subscribeRealtime();
+      rebuildReports();
+      loadBusiness(BIZ.indexOf('ohllys')>=0 ? 'ohllys' : (BIZ[0]||'ohllys'));
+    });
+  }
+  function signOut(){ if(SB){ try{ SB.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); }); }catch(e){ location.reload(); } } }
+  function boot(){
+    wireAuth();
+    try{ SB = window.supabase.createClient(SUPA_URL, SUPA_KEY); }catch(e){ showLogin(); setAuthMsg('Could not connect — refresh to try again.', true); return; }
+    SB.auth.getSession().then(function(res){
+      SESSION = res && res.data && res.data.session;
+      if(!SESSION){ showLogin(); return; }
+      afterLogin();
+    }, function(){ showLogin(); });
+    SB.auth.onAuthStateChange(function(evt){ if(evt==='SIGNED_OUT'){ try{ location.reload(); }catch(e){} } });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
