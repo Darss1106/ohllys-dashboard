@@ -651,7 +651,7 @@
     var trs=doc.getElementsByTagName('tr'), lines=[];
     for(var i=0;i<trs.length;i++){ var tds=trs[i].getElementsByTagName('td'), cells=[]; for(var j=0;j<tds.length;j++){ cells.push((tds[j].textContent||'').replace(/\s+/g,' ').trim()); } lines.push(cells.join(' | ')); }
     var T=lines.join(' ').replace(/\s+/g,' ');
-    var rx=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?\s*\|\s*(0004\d{3})\s*\|[^|]*?(\d+)\s*\|\s*\|\s*\d{6}\s*\|\s*([^|]+?)\s*\|\s*[\d.,]+\.\d{2}\s*\|\s*\|\s*([\d.,]+\.\d{2})/g;
+    var rx=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?\s*\|\s*(\d{6,8})\s*\|[^|]*?(\d+)\s*\|\s*\|\s*\d{6}\s*\|\s*([^|]+?)\s*\|\s*[\d.,]+\.\d{2}\s*\|\s*\|\s*([\d.,]+\.\d{2})/g;
     var m, recs=[];
     while((m=rx.exec(T))){ recs.push({mo:parseInt(m[1],10), da:parseInt(m[2],10), yr:parseInt(m[3],10), qty:parseInt(m[5],10)||0, name:(m[6]||'').trim(), price:parseFloat((m[7]||'0').replace(/,/g,''))||0}); }
     return {ok:true, recs:recs};
