@@ -578,7 +578,9 @@
     "CORNED BEEF SILOG":"Corned Beef",
     "SPAGHETTI WITH MEATBALLS":"Spaghetti w/ Meatballs",
     "BACON PASTA ALFREDO":"Alfredo Pasta",
-    "FRIES":"French Fries"
+    "FRIES":"French Fries",
+    "HAM&EGG SANDWICH":"Ham and Egg",
+    "HAM&CHEESE SANDWICH":"Ham and Cheese"
   };
   function posAliasMap(){ var a={},k; for(k in POS_ALIAS_DEFAULT) a[k]=POS_ALIAS_DEFAULT[k]; try{ var s=JSON.parse(LS.get('ohlly_pos_alias')||'null'); if(s&&typeof s==='object'){ for(k in s) a[k]=s[k]; } }catch(e){} return a; }
   function normPos(name){ var s=(''+name).toUpperCase().replace(/\s+/g,' ').trim(); s=s.replace(/^(HOT|ICED|COLD)\s+/,''); s=s.replace(/\s*\([^)]*\)/g,''); return s.replace(/\s+/g,' ').trim(); }
@@ -638,8 +640,56 @@
     selDate=parsed.d;
     return {ok:true, d:parsed.d, m:parsed.m, matched:Object.keys(matched).length, units:mUnits, unmatched:unmatched};
   }
+
+  // ---- Transaction-report import: reads the full POS transaction listing (all stores mixed),
+  //      keeps only Ohlly's menu items, groups by day, routes "FP" items to Foodpanda. ----
+  function fpImpAll(){ try{ var s=JSON.parse(LS.get('ohlly_fp_imported')||'null'); if(s&&typeof s==='object') return s; }catch(e){} return {}; }
+  function getFpImported(date){ var a=fpImpAll(); return a[date]||[]; }
+  function parseTxn(text){
+    var doc; try{ doc=new DOMParser().parseFromString(text,'text/html'); }catch(e){ doc=null; }
+    if(!doc||!doc.body) return {ok:false, recs:[]};
+    var trs=doc.getElementsByTagName('tr'), lines=[];
+    for(var i=0;i<trs.length;i++){ var tds=trs[i].getElementsByTagName('td'), cells=[]; for(var j=0;j<tds.length;j++){ cells.push((tds[j].textContent||'').replace(/\s+/g,' ').trim()); } lines.push(cells.join(' | ')); }
+    var T=lines.join(' ').replace(/\s+/g,' ');
+    var rx=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?\s*\|\s*(0004\d{3})\s*\|[^|]*?(\d+)\s*\|\s*\|\s*\d{6}\s*\|\s*([^|]+?)\s*\|\s*[\d.,]+\.\d{2}\s*\|\s*\|\s*([\d.,]+\.\d{2})/g;
+    var m, recs=[];
+    while((m=rx.exec(T))){ recs.push({mo:parseInt(m[1],10), da:parseInt(m[2],10), yr:parseInt(m[3],10), qty:parseInt(m[5],10)||0, name:(m[6]||'').trim(), price:parseFloat((m[7]||'0').replace(/,/g,''))||0}); }
+    return {ok:true, recs:recs};
+  }
+  function importTxnText(text){
+    var p=parseTxn(text), k;
+    if(!p.ok || !p.recs.length) return {ok:false, err:'no recognizable transactions in this file'};
+    var inStore={}, fpd={}, excl={};
+    p.recs.forEach(function(r){
+      var mi=(r.mo-1+12)%12, d=MONTHS[mi]+' '+r.da, m=MONTHS[mi]+' '+r.yr;
+      var isFp=/^FP\b/i.test(r.name), core=r.name.replace(/^FP\s+/i,''), canon=mapPosItem(core);
+      if(isFp){
+        if(canon){ if(!fpd[d]) fpd[d]={}; if(!fpd[d][canon]) fpd[d][canon]={q:0,p:r.price}; fpd[d][canon].q+=r.qty; }
+        else { excl[r.name]=(excl[r.name]||0)+r.qty; }
+      } else if(canon){
+        if(!inStore[d]) inStore[d]={m:m,o:{}}; inStore[d].o[canon]=(inStore[d].o[canon]||0)+r.qty;
+      } else { excl[r.name]=(excl[r.name]||0)+r.qty; }
+    });
+    var imp=getImported(), units=0, dd;
+    for(dd in inStore){ if(!imp[dd]) imp[dd]={m:inStore[dd].m,o:{}}; imp[dd].m=inStore[dd].m; for(k in inStore[dd].o){ imp[dd].o[k]=inStore[dd].o[k]; units+=inStore[dd].o[k]; } }
+    saveImported(imp);
+    var fpi=fpImpAll(), fpDays=0;
+    for(dd in fpd){ fpDays++; var rows=[]; for(k in fpd[dd]) rows.push([k, fpd[dd][k].q, fpd[dd][k].p]); fpi[dd]=rows; }
+    LS.set('ohlly_fp_imported', JSON.stringify(fpi));
+    rebuildReports();
+    var dayList=Object.keys(inStore).sort(function(a,b){ return repDateKey({d:a})-repDateKey({d:b}); });
+    if(dayList.length) selDate=dayList[dayList.length-1];
+    var exN=0; for(k in excl) exN++;
+    return {ok:true, kind:'txn', days:dayList.length, units:units, fpDays:fpDays, dayList:dayList, excluded:exN};
+  }
+
   function importSummaryHTML(res, fname){
-    if(!res||!res.ok) return '<div class="upempty" style="border-left:3px solid var(--red)">Couldn’t import <b>'+(fname||'file')+'</b> — '+((res&&res.err)||'unknown error')+'. It should be a POS “Category Sold” export (.htm).</div>';
+    if(!res||!res.ok) return '<div class="upempty" style="border-left:3px solid var(--red)">Couldn’t import <b>'+(fname||'file')+'</b> — '+((res&&res.err)||'unknown error')+'. It should be a POS “Category Sold” or transaction export (.htm).</div>';
+    if(res.kind==='txn'){
+      var ht='<div class="upempty" style="border-left:3px solid var(--good)"><b>Imported '+res.days+' day(s)</b> — '+res.units+' Ohlly’s item-unit(s)'+(res.fpDays?', plus Foodpanda sorted separately':'')+'. Days: '+res.dayList.join(', ')+'.';
+      ht+='<br><span style="color:var(--ink-faint)">'+res.excluded+' other-store product(s) skipped (Coke, snacks, grill, etc.).</span></div>';
+      return ht;
+    }
     var h='<div class="upempty" style="border-left:3px solid var(--good)"><b>Imported '+res.d+'</b> — '+res.matched+' item(s), '+res.units+' units folded in.';
     if(res.unmatched&&res.unmatched.length) h+='<br><span style="color:var(--amber)">Not on the menu, skipped: '+res.unmatched.map(function(u){return u[0]+' ×'+u[1];}).join(', ')+'. Tell me and I’ll add them.</span>';
     h+='</div>'; return h;
@@ -649,7 +699,8 @@
     ab.addEventListener('click', function(){ fi.click(); });
     fi.addEventListener('change', function(){ var f=fi.files&&fi.files[0]; if(!f) return;
       var rd=new FileReader();
-      rd.onload=function(){ var res; try{ res=importPOSText(''+rd.result); }catch(e){ res={ok:false,err:(e&&e.message)||'parse error'}; }
+      rd.onload=function(){ var res; var txt=''+rd.result;
+        try{ res=importPOSText(txt); if(!res.ok){ var r2=importTxnText(txt); if(r2.ok) res=r2; } }catch(e){ res={ok:false,err:(e&&e.message)||'parse error'}; }
         showView(curIt); var ul=$('upList'); if(ul) ul.innerHTML=importSummaryHTML(res,f.name); fi.value=''; };
       rd.readAsText(f);
     });
@@ -1635,7 +1686,7 @@
   function getFpManual(date){ try{ var all=JSON.parse(LS.get('ohlly_fp_manual')||'{}'); if(all && all[date]) return all[date]; }catch(e){} return []; }
   function saveFpManual(date, rows){ try{ var all={}; try{all=JSON.parse(LS.get('ohlly_fp_manual')||'{}');}catch(e){} all[date]=rows; LS.set('ohlly_fp_manual', JSON.stringify(all)); }catch(e){} }
   function fpSectionHTML(key){
-    var items=(FP_BY_DATE[key]||[]).concat(getFpManual(key)), manual=getFpManual(key);
+    var items=(FP_BY_DATE[key]||[]).concat(getFpImported(key)).concat(getFpManual(key)), manual=getFpManual(key);
     var rows=items.map(function(it){ var nm=it[0], qty=parseFloat(it[1])||0, price=parseFloat(it[2])||0, cost=(ITEM[nm]?ITEM[nm][1]:0); var sales=price*qty, cogs=cost*qty; return {nm:nm,qty:qty,price:price,sales:sales,cogs:cogs,gross:sales-cogs,fc:sales?100*cogs/sales:0}; });
     rows.sort(function(a,b){ return b.sales-a.sales; });
     var tQ=0,tS=0,tC=0,tG=0; rows.forEach(function(r){ tQ+=r.qty; tS+=r.sales; tC+=r.cogs; tG+=r.gross; });
