@@ -1033,6 +1033,16 @@
       Array.prototype.forEach.call(tr.querySelectorAll('.csCost,.csPrice'), function(inp){ inp.addEventListener('input', function(){ recalc(tr); save(); }); });
     });
   }
+  function getIngredients(){ try{ var s=JSON.parse(LS.get('ohlly_ingredients')||'null'); if(Array.isArray(s)) return s; }catch(e){} return INGREDIENTS.map(function(r){ return r.slice(); }); }
+  function saveIngredients(rows){ LS.set('ohlly_ingredients', JSON.stringify(rows)); }
+  function ingRefRow(x,i){ return '<tr data-i="'+i+'"><td><input class="exin ingf" value="'+esc(x[0]||'')+'"></td><td><input class="exin exn ingf" value="'+esc(x[1]||'')+'"></td><td><input class="exin exn ingf" value="'+esc(x[2]||'')+'"></td><td><input class="exin exn ingf" value="'+esc(x[3]||'')+'"></td><td><input class="exin ingf" value="'+esc(x[4]||'')+'"></td><td><button class="exdel" title="Delete row">&times;</button></td></tr>'; }
+  function wireIngredientsRef(){
+    var body=$('ingBody'); if(!body) return;
+    function collect(){ var rows=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var c=tr.querySelectorAll('.ingf'); rows.push([c[0].value,c[1].value,c[2].value,c[3].value,c[4].value]); }); return rows; }
+    Array.prototype.forEach.call(body.querySelectorAll('.ingf'), function(inp){ inp.addEventListener('input', function(){ saveIngredients(collect()); }); });
+    Array.prototype.forEach.call(body.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=collect(); rows.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); saveIngredients(rows); showView(curIt); }); });
+    var ab=$('addIngBtn'); if(ab) ab.addEventListener('click', function(){ var rows=collect(); rows.push(["","","","",""]); saveIngredients(rows); showView(curIt); });
+  }
 
   function renderNav(bus){
     reg={}; uid=0;
@@ -1669,13 +1679,13 @@
       h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th>Unit</th><th class="n">₱ per unit</th></tr></thead><tbody id="rateBody">';
       ings.forEach(function(ing){ var r=RATES[ing]; h+='<tr data-ing="'+esc(ing)+'"><td>'+ing+'</td><td>'+r.unit+'</td><td class="n"><input class="exin exn rateIn" value="'+r.rate+'" style="width:92px;text-align:right"></td></tr>'; });
       h+='</tbody></table></div>';
-      h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Purchase reference</h3>';
-      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Paid</th><th class="n">Costing</th><th class="n">Unit cost</th><th class="n">Pack size</th></tr></thead><tbody>';
-      INGREDIENTS.forEach(function(x){ var pk=(x[4]||'').trim(); var pkCell = (pk==='?'||pk==='~1 L ?') ? '<span style="color:var(--ink-faint)">'+(pk==='?'?'confirm':pk)+'</span>' : pk; h+='<tr><td>'+x[0]+'</td><td class="n">'+x[1]+'</td><td class="n">'+x[2]+'</td><td class="n">'+x[3]+'</td><td class="n">'+pkCell+'</td></tr>'; });
+      h+='<div class="uprow" style="margin:26px 0 6px"><span class="uplabel" style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;color:var(--ink)">Purchase reference</span><button class="upbtn" id="addIngBtn">+ Add row</button></div>';
+      h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Ingredient</th><th class="n">Paid</th><th class="n">Costing</th><th class="n">Unit cost</th><th class="n">Pack size</th><th></th></tr></thead><tbody id="ingBody">';
+      getIngredients().forEach(function(x,i){ h+=ingRefRow(x,i); });
       h+='</tbody></table></div>';
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
-      wireRates();
-      $('tileNote').innerHTML='The <b>Cost per unit</b> table prices every recipe. Raise a rate (say coffee beans from ₱1.50 to ₱1.70 per gram) and every coffee drink’s cost and food-cost % updates across all reports. The <b>Purchase reference</b> below is your buy-price &amp; pack-size sheet (feeds Stock + Reorder).';
+      wireRates(); wireIngredientsRef();
+      $('tileNote').innerHTML='The <b>Cost per unit</b> table prices every recipe. Raise a rate (say coffee beans from ₱1.50 to ₱1.70 per gram) and every coffee drink’s cost and food-cost % updates across all reports. The <b>Purchase reference</b> below is your editable buy-price &amp; pack-size sheet — type to edit, <b>+ Add row</b> for new items.';
       return;
     }
     if(view==='costing'){
