@@ -361,6 +361,21 @@
     ["Cinnamon","g",3.35],["Cup","pc",5.6],["Sea salt foam","g",0.287],["Sea salt cream","g",0.287]
   ];
   var INGRATE={}; INGDEF.forEach(function(d){ INGRATE[d[0]]={unit:d[1],rate:d[2]}; });
+  // ---- Editable costing: per-unit rates drive recipe costs; recipes + prices are overridable and persisted. ----
+  function parseAmt(s){ s=(''+s).trim(); var f=s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/); if(f){ var d=parseFloat(f[2]); return d?parseFloat(f[1])/d:0; } var m=s.match(/[-+]?\d*\.?\d+/); return m?parseFloat(m[0]):0; }
+  function parseUnit(s){ var m=(''+s).trim().match(/([a-zA-Z]+)\s*$/); var u=m?m[1].toLowerCase():''; if(u==='pcs') u='pc'; return u||'g'; }
+  // RATES seeded from the recipe lines so each ingredient's ₱/unit reproduces today's costs exactly.
+  var RATES={};
+  Object.keys(RECIPE).forEach(function(nm){ RECIPE[nm].forEach(function(l){ var ing=l[0], a=parseAmt(l[1]); if(!(ing in RATES)){ RATES[ing]={unit:parseUnit(l[1]), rate:a?(l[2]/a):0}; } }); });
+  function recipeLineCost(l){ var r=RATES[l[0]]; return (r?r.rate:0)*parseAmt(l[1]); }
+  function recipeCost(nm){ var s=0; (RECIPE[nm]||[]).forEach(function(l){ s+=recipeLineCost(l); }); return s; }
+  function ovrMap(key){ try{ var o=JSON.parse(LS.get(key)||'null'); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
+  function applyOverrides(){
+    var ro=ovrMap('ohlly_rate'); for(var k in ro){ var rv=parseFloat(ro[k]); if(!isNaN(rv)){ if(RATES[k]) RATES[k].rate=rv; else RATES[k]={unit:'g',rate:rv}; } }
+    var reo=ovrMap('ohlly_recipe'); for(var nm in reo){ if(Array.isArray(reo[nm])) RECIPE[nm]=reo[nm].map(function(l){ return [l[0], l[1]]; }); }
+    var po=ovrMap('ohlly_price'); for(var nm2 in po){ var pv=parseFloat(po[nm2]); if(ITEM[nm2]&&!isNaN(pv)) ITEM[nm2][0]=pv; }
+    Object.keys(RECIPE).forEach(function(nm){ if(ITEM[nm]){ ITEM[nm][1]=Math.round(recipeCost(nm)*100)/100; } });
+  }
   var POSEXPORT = [
     ["08:48 PM","0004612","WALK-IN","ICED HONEY CINNAMON","Honey Cinnamon Oat",1,"195.00"],
     ["08:44 PM","0004610","WALK-IN","CRISPY CHICKEN FILLET","Crispy Chicken Fillet",1,"195.00"],
@@ -953,6 +968,36 @@
     Array.prototype.forEach.call(body.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=collect(); var tr=b.closest('tr[data-i]'); rows.splice(+tr.getAttribute('data-i'),1); saveUse(monthLabel(monthOffset), rows); renderUseLog(); }); });
     $('addUseBtn').addEventListener('click', function(){ var rows=collect(); rows.push(["","0",""]); saveUse(monthLabel(monthOffset), rows); renderUseLog(); });
   }
+  function wireRecipes(){
+    var root=$('reportTable'); if(!root) return;
+    function refreshCard(card){ var tot=0;
+      Array.prototype.forEach.call(card.querySelectorAll('.rrow[data-li]'), function(row){ var ing=row.getAttribute('data-ing'); var amt=row.querySelector('.rcAmt').value; var c=(RATES[ing]?RATES[ing].rate:0)*parseAmt(amt); var cc=row.querySelector('.rcLineCost'); if(cc) cc.textContent=P+money(c); tot+=c; });
+      var tEl=card.querySelector('.rcTot'); if(tEl) tEl.textContent=P+money(tot);
+      var pin=card.querySelector('.rcPrice'); var price=pin?parseFloat((pin.value||'').replace(/,/g,'')):0; var fEl=card.querySelector('.rcFC'); if(fEl) fEl.textContent=((price&&!isNaN(price))?(100*tot/price).toFixed(1):'0')+'%';
+    }
+    function saveAll(){ var price={}, recipe={};
+      Array.prototype.forEach.call(root.querySelectorAll('.rcard'), function(card){ var nm=card.getAttribute('data-item');
+        var pin=card.querySelector('.rcPrice'); if(pin){ var pv=parseFloat((pin.value||'').replace(/,/g,'')); if(!isNaN(pv)) price[nm]=pv; }
+        var lines=[]; Array.prototype.forEach.call(card.querySelectorAll('.rrow[data-li]'), function(row){ lines.push([row.getAttribute('data-ing'), row.querySelector('.rcAmt').value]); });
+        recipe[nm]=lines;
+      });
+      LS.set('ohlly_price', JSON.stringify(price)); LS.set('ohlly_recipe', JSON.stringify(recipe));
+      applyOverrides(); if(typeof rebuildReports==='function') rebuildReports();
+    }
+    Array.prototype.forEach.call(root.querySelectorAll('.rcard'), function(card){
+      Array.prototype.forEach.call(card.querySelectorAll('.rcAmt'), function(inp){ inp.addEventListener('input', function(){ refreshCard(card); saveAll(); }); });
+      var pin=card.querySelector('.rcPrice'); if(pin) pin.addEventListener('input', function(){ refreshCard(card); saveAll(); });
+    });
+  }
+  function wireRates(){
+    var body=$('rateBody'); if(!body) return;
+    Array.prototype.forEach.call(body.querySelectorAll('.rateIn'), function(inp){ inp.addEventListener('input', function(){
+      var tr=inp.closest('tr[data-ing]'); if(!tr) return; var ing=tr.getAttribute('data-ing'); var v=parseFloat((inp.value||'').replace(/,/g,'')); if(isNaN(v)) return;
+      if(RATES[ing]) RATES[ing].rate=v; var rates=ovrMap('ohlly_rate'); rates[ing]=v; LS.set('ohlly_rate', JSON.stringify(rates));
+      applyOverrides(); if(typeof rebuildReports==='function') rebuildReports();
+      var m=$('rateMsg'); if(m) m.innerHTML='<span style="color:var(--good)">Saved — every recipe using '+ing+' repriced.</span>';
+    }); });
+  }
 
   function renderNav(bus){
     reg={}; uid=0;
@@ -1343,24 +1388,21 @@
       $('configPanel').hidden=true; $('tilePanel').hidden=false;
       var names=Object.keys(RECIPE);
       var favg=0,n=0;
-      names.forEach(function(nm){ var it=ITEM[nm]; if(!it)return; var s=0; RECIPE[nm].forEach(function(l){s+=l[2];}); if(it[0]){favg+=100*s/it[0];n++;} });
+      names.forEach(function(nm){ var it=ITEM[nm]; if(!it)return; var s=recipeCost(nm); if(it[0]){favg+=100*s/it[0];n++;} });
       favg=n?favg/n:0;
       var g='';
       g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Recipes loaded</div><div class="v">'+names.length+'</div><div class="s">coffee &amp; matcha drinks</div></div>';
       g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Avg drink food cost</div><div class="v">'+favg.toFixed(1)+'%</div><div class="s">recipe cost ÷ price</div></div>';
       $('tileGrid').innerHTML=g;
-      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Drink</th><th class="n">Recipe cost</th><th class="n">Price</th><th class="n">FC%</th></tr></thead><tbody>';
-      names.forEach(function(nm){ var it=ITEM[nm]; if(!it)return; var s=0; RECIPE[nm].forEach(function(l){s+=l[2];}); var fc=it[0]?100*s/it[0]:0; h+='<tr><td>'+nm+'</td><td class="n">'+P+money(s)+'</td><td class="n">'+P+fmt(it[0])+'</td><td class="n">'+fc.toFixed(1)+'%</td></tr>'; });
-      h+='</tbody></table></div>';
-      h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 2px;color:var(--ink)">Ingredient breakdown</h3>';
-      names.forEach(function(nm){
-        var s=0; RECIPE[nm].forEach(function(l){s+=l[2];});
-        h+='<div class="rcard"><div class="rhd">'+nm+' <span>'+P+money(s)+'</span></div>';
-        RECIPE[nm].forEach(function(l){ h+='<div class="rrow"><span>'+l[0]+(l[1]?' · '+l[1]:'')+'</span><span class="rc">'+P+money(l[2])+'</span></div>'; });
+      var h='<div class="uprow" style="margin-bottom:10px"><span class="uplabel">Type to edit — amounts and prices save automatically and reprice every report.</span></div>';
+      names.forEach(function(nm){ var it=ITEM[nm]; if(!it)return; var s=recipeCost(nm); var fc=it[0]?100*s/it[0]:0;
+        h+='<div class="rcard" data-item="'+esc(nm)+'"><div class="rhd">'+nm+' <span>cost <b class="rcTot">'+P+money(s)+'</b> · price <input class="exin exn rcPrice" value="'+it[0]+'" style="width:64px"> · FC <b class="rcFC">'+(it[0]?fc.toFixed(1):'0')+'%</b></span></div>';
+        RECIPE[nm].forEach(function(l,li){ var u=RATES[l[0]]?RATES[l[0]].unit:''; h+='<div class="rrow" data-li="'+li+'" data-ing="'+esc(l[0])+'" style="display:flex;align-items:center;gap:8px"><span class="rlab" style="flex:1">'+l[0]+'</span><input class="exin exn rcAmt" value="'+esc(l[1])+'" title="amount in '+u+'" style="width:84px;text-align:right"><span class="rc rcLineCost" style="width:74px;text-align:right">'+P+money(recipeLineCost(l))+'</span></div>'; });
         h+='</div>';
       });
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
-      $('tileNote').innerHTML='These recipes now cost every drink across the Daily, Monthly and Overall reports. Food &amp; shakes use their given cost (no recipe needed).';
+      wireRecipes();
+      $('tileNote').innerHTML='Change an <b>amount</b> or <b>price</b> and it saves instantly and flows into Daily, Monthly, Cost of Products and Overall. To change what an <b>ingredient costs per unit</b>, edit it once in <b>Ingredient Prices &amp; Costs</b> — that reprices every drink that uses it. Food &amp; shakes use their given cost.';
       return;
     }
     if(view==='tally' && bus.reports){
@@ -1583,16 +1625,25 @@
     }
     if(view==='ingredients'){
       $('configPanel').hidden=true; $('tilePanel').hidden=false;
+      var ings=Object.keys(RATES).sort();
+      var pm=RATES['Matcha (premium)']?RATES['Matcha (premium)'].rate:0;
       var g='';
-      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Ingredients</div><div class="v">'+INGREDIENTS.length+'</div><div class="s">in the list</div></div>';
-      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Priciest per g</div><div class="v" style="font-size:18px">Matcha (Nishide)</div><div class="s">'+P+'22.5 / g</div></div>';
-      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Milk used in drinks</div><div class="v" style="font-size:18px">Oat Milk</div><div class="s">'+P+'0.18 / g</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Cost rates</div><div class="v">'+ings.length+'</div><div class="s">editable ₱ / unit</div></div>';
+      g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Priciest per g</div><div class="v" style="font-size:18px">Matcha (premium)</div><div class="s">'+P+money(pm)+' / g</div></div>';
+      g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Edits flow to</div><div class="v" style="font-size:16px">All recipes</div><div class="s">&amp; every report</div></div>';
       $('tileGrid').innerHTML=g;
-      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Paid</th><th class="n">Costing</th><th class="n">Unit cost</th><th class="n">Pack size</th></tr></thead><tbody>';
+      var h='<div class="uprow" style="margin-bottom:6px"><span class="uplabel">Cost per unit — type to edit; every drink using that ingredient reprices instantly.</span></div>';
+      h+='<div id="rateMsg" style="font-size:12px;margin:0 0 10px;min-height:16px"></div>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th>Unit</th><th class="n">₱ per unit</th></tr></thead><tbody id="rateBody">';
+      ings.forEach(function(ing){ var r=RATES[ing]; h+='<tr data-ing="'+esc(ing)+'"><td>'+ing+'</td><td>'+r.unit+'</td><td class="n"><input class="exin exn rateIn" value="'+r.rate+'" style="width:92px;text-align:right"></td></tr>'; });
+      h+='</tbody></table></div>';
+      h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Purchase reference</h3>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Ingredient</th><th class="n">Paid</th><th class="n">Costing</th><th class="n">Unit cost</th><th class="n">Pack size</th></tr></thead><tbody>';
       INGREDIENTS.forEach(function(x){ var pk=(x[4]||'').trim(); var pkCell = (pk==='?'||pk==='~1 L ?') ? '<span style="color:var(--ink-faint)">'+(pk==='?'?'confirm':pk)+'</span>' : pk; h+='<tr><td>'+x[0]+'</td><td class="n">'+x[1]+'</td><td class="n">'+x[2]+'</td><td class="n">'+x[3]+'</td><td class="n">'+pkCell+'</td></tr>'; });
       h+='</tbody></table></div>';
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
-      $('tileNote').innerHTML='All in PHP. Costing = the padded rate used in recipes. Drinks are costed on Oat Milk (₱0.18/g). <b>Pack size</b> = how much you get per purchase — it lets Stock Used + Reorder say “buy N packs.” Rows marked <i>confirm</i> need the grams / mL / pcs per pack from you.';
+      wireRates();
+      $('tileNote').innerHTML='The <b>Cost per unit</b> table prices every recipe. Raise a rate (say coffee beans from ₱1.50 to ₱1.70 per gram) and every coffee drink’s cost and food-cost % updates across all reports. The <b>Purchase reference</b> below is your buy-price &amp; pack-size sheet (feeds Stock + Reorder).';
       return;
     }
     if(view==='costing'){
@@ -1949,6 +2000,7 @@
     hideLogin();
     loadMemberships().then(function(){ return loadAllData(); }).then(function(){
       subscribeRealtime();
+      applyOverrides();
       rebuildReports();
       loadBusiness(BIZ.indexOf('ohllys')>=0 ? 'ohllys' : (BIZ[0]||'ohllys'));
     });
