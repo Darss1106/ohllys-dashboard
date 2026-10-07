@@ -299,9 +299,12 @@
     "Spaghetti w/ Meatballs":[230,113],"Beef Franks":[215,115],"Hotdog Silog":[180,60],
     "Double Shot Espresso":[85,27],"Salted Banana Latte":[220,74.63],"Banana Bread Matcha":[230,122.33]
   };
+  // Each order line is [item, qty] or baked [item, qty, price, cost] (frozen price/cost as of that day).
   function computeReport(order){
-    var rows=[],ts=0,tc=0,tu=0;
-    order.forEach(function(o){ var it=ITEM[o[0]]; if(!it) return; var q=o[1], sales=it[0]*q, cg=it[1]*q; rows.push([o[0],q,sales,cg,sales-cg, sales?100*cg/sales:0]); ts+=sales; tc+=cg; tu+=q; });
+    var map={}, ts=0,tc=0,tu=0;
+    (order||[]).forEach(function(o){ var it=ITEM[o[0]]; if(!it) return; var q=o[1]||0; var price=(o[2]!=null)?o[2]:it[0]; var uc=(o[3]!=null)?o[3]:it[1]; var sales=price*q, cost=uc*q;
+      if(!map[o[0]]) map[o[0]]=[o[0],0,0,0]; var r=map[o[0]]; r[1]+=q; r[2]+=sales; r[3]+=cost; ts+=sales; tc+=cost; tu+=q; });
+    var rows=[]; Object.keys(map).forEach(function(k){ var r=map[k]; rows.push([r[0],r[1],r[2],r[3],r[2]-r[3], r[2]?100*r[3]/r[2]:0]); });
     rows.sort(function(a,b){ return b[2]-a[2]; });
     return {rows:rows, sales:ts, cogs:tc, gross:ts-tc, fc: ts?100*tc/ts:0, units:tu};
   }
@@ -312,7 +315,7 @@
   };
   function groupCOGS(order){
     var res={cm:{sales:0,cogs:0,units:0}, fs:{sales:0,cogs:0,units:0}};
-    order.forEach(function(o){ var it=ITEM[o[0]]; if(!it) return; var q=o[1], g=GROUP[o[0]]||'fs'; res[g].sales+=it[0]*q; res[g].cogs+=it[1]*q; res[g].units+=q; });
+    (order||[]).forEach(function(o){ var it=ITEM[o[0]]; if(!it) return; var q=o[1]||0, g=GROUP[o[0]]||'fs'; var price=(o[2]!=null)?o[2]:it[0]; var uc=(o[3]!=null)?o[3]:it[1]; res[g].sales+=price*q; res[g].cogs+=uc*q; res[g].units+=q; });
     return res;
   }
 
@@ -609,6 +612,9 @@
   function saveImported(o){ LS.set('ohlly_imported', JSON.stringify(o)); }
   function orderToMap(order){ var m={}; order.forEach(function(o){ m[o[0]]=(m[o[0]]||0)+o[1]; }); return m; }
   function repDateKey(r){ var mo=reportMonthOf(r); var mm=(mo.match(/[A-Za-z]{3}/)||[''])[0]; var yy=(mo.match(/(19|20)\d\d/)||['2026'])[0]; var mi=MONTHS.indexOf(mm); if(mi<0)mi=0; var dayM=(''+r.d).match(/\b(\d{1,2})\b/); var day=dayM?parseInt(dayM[1],10):0; return parseInt(yy,10)*10000+mi*100+day; }
+  // Per-day price/cost snapshot so editing today's prices never rewrites past days.
+  function getSnap(){ try{ var s=JSON.parse(LS.get('ohlly_pricesnap')||'null'); if(s&&typeof s==='object') return s; }catch(e){} return {}; }
+  function linesFor(reps, month, withManual){ var lines=[]; (reps||[]).forEach(function(r){ (r.order||[]).forEach(function(o){ lines.push(o); }); }); if(withManual){ getManual(month).forEach(function(mm){ if(mm[0]) lines.push([mm[0], parseFloat(mm[1])||0]); }); } return lines; }
   function rebuildReports(){
     var imp=getImported(), byDate={}, k;
     BAKED_OHLLYS.forEach(function(r){ byDate[r.d]={d:r.d,m:r.m,live:r.live,imported:false,order:orderToMap(r.order)}; });
@@ -617,7 +623,14 @@
       byDate[d].imported=true; if(rec.m) byDate[d].m=rec.m;
       for(k in rec.o) byDate[d].order[k]=rec.o[k];
     });
-    var arr=Object.keys(byDate).map(function(d){ var o=byDate[d], ord=[], kk; for(kk in o.order) ord.push([kk,o.order[kk]]); return {d:o.d,m:o.m,live:o.live,imported:o.imported,order:ord}; });
+    var snap=getSnap(), snapDirty=false;
+    var arr=Object.keys(byDate).map(function(d){ var o=byDate[d], items=Object.keys(o.order);
+      if(!snap[d]){ var sm={}; items.forEach(function(nm){ if(ITEM[nm]) sm[nm]=[ITEM[nm][0], ITEM[nm][1]]; }); snap[d]=sm; snapDirty=true; }
+      var ds=snap[d]||{}, ord=[], kk;
+      for(kk in o.order){ var pc=ds[kk], it=ITEM[kk]; var price=pc?pc[0]:(it?it[0]:0), cost=pc?pc[1]:(it?it[1]:0); ord.push([kk,o.order[kk],price,cost]); }
+      return {d:o.d,m:o.m,live:o.live,imported:o.imported,order:ord};
+    });
+    if(snapDirty){ try{ LS.set('ohlly_pricesnap', JSON.stringify(snap)); }catch(e){} }
     arr.sort(function(a,b){ return repDateKey(a)-repDateKey(b); });
     BUS.ohllys.reports=arr;
   }
@@ -1431,9 +1444,7 @@
       $('configPanel').hidden=true; $('tilePanel').hidden=false;
       var month=monthBar();
       var reps=reportsForMonth(month), days=reps.length;
-      var agg={}; reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
-      getManual(month).forEach(function(mm){ if(mm[0]) agg[mm[0]]=(agg[mm[0]]||0)+(parseFloat(mm[1])||0); });
-      var order=filterOrder(Object.keys(agg).map(function(k){ return [k,agg[k]]; }));
+      var order=filterOrder(linesFor(reps, month, true));
       var c=computeReport(order);
       showFilter();
       var rows=c.rows.slice().sort(function(a,b){ return (b[1]-a[1])||(b[2]-a[2]); });
@@ -1468,8 +1479,7 @@
       $('configPanel').hidden=true; $('tilePanel').hidden=false;
       var month=monthBar();
       var reps=reportsForMonth(month), days=reps.length;
-      var agg={}; reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
-      var order=Object.keys(agg).map(function(k){ return [k,agg[k]]; });
+      var order=linesFor(reps, month, false);
       var c=computeReport(order), cogs=c.cogs;
       var cashHand=0, ewallet=0, receivable=0, grossIn=0, feesTot=0;
       reps.forEach(function(rp){
@@ -1705,9 +1715,7 @@
       if(bus.reports){
         var month=monthBar();
         var reps=reportsForMonth(month); days=reps.length;
-        var agg={};
-        reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
-        var order=Object.keys(agg).map(function(k){ return [k,agg[k]]; });
+        var order=linesFor(reps, month, false);
         var c=computeReport(order), gc=groupCOGS(order);
         sales=c.sales;
         expLines.push(["Ingredients — Coffee & Matcha", gc.cm.cogs, "drinks COGS"]);
@@ -1738,9 +1746,7 @@
       if(bus.reports){
         var month=monthBar();
         var reps=reportsForMonth(month), days=reps.length, agg={};
-        reps.forEach(function(r){ r.order.forEach(function(o){ agg[o[0]]=(agg[o[0]]||0)+o[1]; }); });
-        getManual(month).forEach(function(mm){ if(mm[0]) agg[mm[0]]=(agg[mm[0]]||0)+(parseFloat(mm[1])||0); });
-        var order=filterOrder(Object.keys(agg).map(function(k){ return [k,agg[k]]; }));
+        var order=filterOrder(linesFor(reps, month, true));
         var c=computeReport(order);
         showFilter();
         var g='';
@@ -1957,7 +1963,7 @@
 
   // Per-business data keys cleared by the Reset button (menu/recipe config like ohlly_pos_alias is kept).
   var RESET_KEYS={
-    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}' },
+    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}','ohlly_pricesnap':'{}' },
     pyu:{ 'pyu_prices':'null','pyu_salary':'null','pyu_exp':'null','pyu_cheques':'null','pyu_paid':'{}','pyu_deadlines':'{}','pyu_terms':'null','pyu_stmt_docs':'null','pyu_customers':'null' }
   };
   function resetBusinessData(key){
