@@ -1870,6 +1870,15 @@
     renderAcctOpts();
   }
 
+  // Per-business data keys cleared by the Reset button (menu/recipe config like ohlly_pos_alias is kept).
+  var RESET_KEYS={
+    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}' },
+    pyu:{ 'pyu_prices':'null','pyu_salary':'null','pyu_exp':'null','pyu_cheques':'null','pyu_paid':'{}','pyu_deadlines':'{}','pyu_terms':'null','pyu_stmt_docs':'null','pyu_customers':'null' }
+  };
+  function resetBusinessData(key){
+    var map=RESET_KEYS[key]||{}; for(var k in map){ LS.set(k, map[k]); }
+    try{ rebuildReports(); }catch(e){}
+  }
   function renderAcctOpts(){
     var order=['ohllys','pyu'].filter(function(k){ return !BIZ.length || BIZ.indexOf(k)>=0; }); if(!order.length) order=['ohllys'];
     var html='';
@@ -1877,7 +1886,8 @@
       var b=BUS[key];
       html+='<button class="acctopt'+(key===current?' active':'')+'" data-bus="'+key+'"><span class="ico">'+svg(b.acct.icon)+'</span><span class="who"><b>'+b.acct.name+'</b><small>'+b.acct.sub+'</small></span><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-11"/></svg></span></button>';
     });
-    html+='<button class="acctopt" data-signout="1" style="margin-top:4px;border-top:1px solid var(--line)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span><span class="who"><b>Sign out</b><small>end this session</small></span></button>';
+    html+='<button class="acctopt" data-reset="'+current+'" style="margin-top:4px;border-top:1px solid var(--line)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg></span><span class="who"><b>Reset '+BUS[current].acct.name+' data</b><small>clear days, splits &amp; entries</small></span></button>';
+    html+='<button class="acctopt" data-signout="1" style="border-top:1px solid var(--line)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span><span class="who"><b>Sign out</b><small>end this session</small></span></button>';
     $('acctOpts').innerHTML=html;
   }
 
@@ -1890,6 +1900,10 @@
   });
   $('acctOpts').addEventListener('click', function(e){
     var so=e.target.closest('[data-signout]'); if(so){ closeMenu(); signOut(); return; }
+    var rs=e.target.closest('[data-reset]'); if(rs){ var key=rs.getAttribute('data-reset'), nm=BUS[key].acct.name;
+      if(window.confirm('Reset all '+nm+' data?\n\nThis clears imported days, Money In splits, manual entries, expenses and usage for '+nm+'. The menu and recipes are kept. This cannot be undone.')){ resetBusinessData(key); closeMenu(); loadBusiness(key); }
+      else { closeMenu(); }
+      return; }
     var opt=e.target.closest('[data-bus]'); if(!opt) return;
     loadBusiness(opt.getAttribute('data-bus')); closeMenu();
   });
