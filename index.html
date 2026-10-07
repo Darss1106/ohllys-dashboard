@@ -525,7 +525,7 @@
       var val=st.val; st.has=false; st.inflight=true;
       var done=function(){ st.inflight=false; if(st.has) flush(); };
       try{
-        SB.from('app_data').upsert({business:bizOf(k), key:k, value:{v:val}, updated_at:new Date().toISOString()}, {onConflict:'business,key'}).then(done, done);
+        SB.from('app_data').upsert({business:bizOf(k), key:k, value:{v:val}, updated_at:new Date().toISOString(), updated_by:(SESSION&&SESSION.user&&SESSION.user.id)||null}, {onConflict:'business,key'}).then(done, done);
       }catch(e){ st.inflight=false; }
     })();
   }
@@ -548,10 +548,13 @@
     try{
       SB.channel('app_data_rt').on('postgres_changes', {event:'*', schema:'public', table:'app_data'}, function(payload){
         var row = payload['new'] || payload.old; if(!row || !row.key) return;
+        var mu=(SESSION&&SESSION.user&&SESSION.user.id)||null; if(row.updated_by && mu && row.updated_by===mu) return; // skip our own writes echoing back
         var changed=false;
         if(payload.eventType==='DELETE'){ if(Object.prototype.hasOwnProperty.call(MEM,row.key)){ delete MEM[row.key]; try{ if(_ls) _ls.removeItem(row.key); }catch(e){} changed=true; } }
         else { changed = applyRow(row.key, row.value); }
-        if(changed){ if(typeof rebuildReports==='function') rebuildReports(); if(curIt && typeof showView==='function') showView(curIt); }
+        if(changed){ if(typeof rebuildReports==='function') rebuildReports();
+          var ae=document.activeElement, editing = ae && (ae.tagName==='INPUT'||ae.tagName==='SELECT'||ae.tagName==='TEXTAREA');
+          if(curIt && typeof showView==='function' && !editing) showView(curIt); }
       }).subscribe();
     }catch(e){}
   }
