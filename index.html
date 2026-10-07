@@ -375,6 +375,7 @@
     var reo=ovrMap('ohlly_recipe'); for(var nm in reo){ if(Array.isArray(reo[nm])) RECIPE[nm]=reo[nm].map(function(l){ return [l[0], l[1]]; }); }
     var po=ovrMap('ohlly_price'); for(var nm2 in po){ var pv=parseFloat(po[nm2]); if(ITEM[nm2]&&!isNaN(pv)) ITEM[nm2][0]=pv; }
     Object.keys(RECIPE).forEach(function(nm){ if(ITEM[nm]){ ITEM[nm][1]=Math.round(recipeCost(nm)*100)/100; } });
+    var co=ovrMap('ohlly_cost'); for(var nmc in co){ var cv=parseFloat(co[nmc]); if(ITEM[nmc]&&!(nmc in RECIPE)&&!isNaN(cv)) ITEM[nmc][1]=cv; }
   }
   var POSEXPORT = [
     ["08:48 PM","0004612","WALK-IN","ICED HONEY CINNAMON","Honey Cinnamon Oat",1,"195.00"],
@@ -975,7 +976,7 @@
       var tEl=card.querySelector('.rcTot'); if(tEl) tEl.textContent=P+money(tot);
       var pin=card.querySelector('.rcPrice'); var price=pin?parseFloat((pin.value||'').replace(/,/g,'')):0; var fEl=card.querySelector('.rcFC'); if(fEl) fEl.textContent=((price&&!isNaN(price))?(100*tot/price).toFixed(1):'0')+'%';
     }
-    function saveAll(){ var price={}, recipe={};
+    function saveAll(){ var price=ovrMap('ohlly_price'), recipe={};
       Array.prototype.forEach.call(root.querySelectorAll('.rcard'), function(card){ var nm=card.getAttribute('data-item');
         var pin=card.querySelector('.rcPrice'); if(pin){ var pv=parseFloat((pin.value||'').replace(/,/g,'')); if(!isNaN(pv)) price[nm]=pv; }
         var lines=[]; Array.prototype.forEach.call(card.querySelectorAll('.rrow[data-li]'), function(row){ lines.push([row.getAttribute('data-ing'), row.querySelector('.rcAmt').value]); });
@@ -997,6 +998,27 @@
       applyOverrides(); if(typeof rebuildReports==='function') rebuildReports();
       var m=$('rateMsg'); if(m) m.innerHTML='<span style="color:var(--good)">Saved — every recipe using '+ing+' repriced.</span>';
     }); });
+  }
+  function wireCosting(){
+    var body=$('csBody'); if(!body) return;
+    function recalc(tr){ var nm=tr.getAttribute('data-item'), isRec=tr.getAttribute('data-rec')==='1';
+      var cIn=tr.querySelector('.csCost'); var cost = isRec ? (ITEM[nm]?ITEM[nm][1]:0) : (parseFloat(((cIn&&cIn.value)||'0').replace(/,/g,''))||0);
+      var pIn=tr.querySelector('.csPrice'); var price=parseFloat(((pIn&&pIn.value)||'0').replace(/,/g,''))||0;
+      var gross=price-cost, fc=price?100*cost/price:0;
+      var gEl=tr.querySelector('.csGross'); if(gEl) gEl.textContent=P+money(gross);
+      var fe=tr.querySelector('.csFC'); if(fe){ fe.textContent=fc.toFixed(1)+'%'; fe.style.color=fc>=50?'var(--red)':(fc>=40?'var(--amber)':'var(--good)'); }
+    }
+    function save(){ var cost=ovrMap('ohlly_cost'), price=ovrMap('ohlly_price');
+      Array.prototype.forEach.call(body.querySelectorAll('tr[data-item]'), function(tr){ var nm=tr.getAttribute('data-item');
+        var pIn=tr.querySelector('.csPrice'); if(pIn){ var pv=parseFloat((pIn.value||'').replace(/,/g,'')); if(!isNaN(pv)) price[nm]=pv; }
+        var cIn=tr.querySelector('.csCost'); if(cIn){ var cv=parseFloat((cIn.value||'').replace(/,/g,'')); if(!isNaN(cv)) cost[nm]=cv; }
+      });
+      LS.set('ohlly_cost', JSON.stringify(cost)); LS.set('ohlly_price', JSON.stringify(price));
+      applyOverrides(); if(typeof rebuildReports==='function') rebuildReports();
+    }
+    Array.prototype.forEach.call(body.querySelectorAll('tr[data-item]'), function(tr){
+      Array.prototype.forEach.call(tr.querySelectorAll('.csCost,.csPrice'), function(inp){ inp.addEventListener('input', function(){ recalc(tr); save(); }); });
+    });
   }
 
   function renderNav(bus){
@@ -1660,11 +1682,20 @@
       g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Highest FC%</div><div class="v" style="font-size:18px">'+worst[0]+'</div><div class="s">'+worst[4].toFixed(1)+'%</div></div>';
       g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Best margin</div><div class="v" style="font-size:18px">'+best[0]+'</div><div class="s">'+best[4].toFixed(1)+'% FC</div></div>';
       $('tileGrid').innerHTML=g;
-      var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Cost</th><th class="n">Price</th><th class="n">Gross</th><th class="n">FC%</th><th>Source</th></tr></thead><tbody>';
-      rows.forEach(function(r){ var col=r[4]>=50?'var(--red)':(r[4]>=40?'var(--amber)':'var(--good)'); h+='<tr><td>'+r[0]+'</td><td class="n">'+P+money(r[1])+'</td><td class="n">'+P+fmt(r[2])+'</td><td class="n">'+P+money(r[3])+'</td><td class="n" style="color:'+col+';font-weight:600">'+r[4].toFixed(1)+'%</td><td>'+(r[5]==='recipe'?'recipe':'<span style="color:var(--ink-faint)">given cost</span>')+'</td></tr>'; });
+      var h='<div class="uprow" style="margin-bottom:8px"><span class="uplabel">Type to edit — food &amp; shake costs, and any price. Drink costs come from Recipes.</span></div>';
+      h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Cost</th><th class="n">Price</th><th class="n">Gross</th><th class="n">FC%</th><th>Source</th></tr></thead><tbody id="csBody">';
+      rows.forEach(function(r){ var nm=r[0], isRec=(r[5]==='recipe'); var col=r[4]>=50?'var(--red)':(r[4]>=40?'var(--amber)':'var(--good)');
+        h+='<tr data-item="'+esc(nm)+'" data-rec="'+(isRec?1:0)+'"><td>'+nm+'</td>';
+        h+='<td class="n">'+(isRec ? P+money(r[1]) : '<input class="exin exn csCost" value="'+r[1]+'" style="width:76px;text-align:right">')+'</td>';
+        h+='<td class="n"><input class="exin exn csPrice" value="'+r[2]+'" style="width:76px;text-align:right"></td>';
+        h+='<td class="n csGross">'+P+money(r[3])+'</td>';
+        h+='<td class="n csFC" style="color:'+col+';font-weight:600">'+r[4].toFixed(1)+'%</td>';
+        h+='<td>'+(isRec?'recipe':'<span style="color:var(--ink-faint)">given cost</span>')+'</td></tr>';
+      });
       h+='</tbody></table></div>';
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
-      $('tileNote').innerHTML='Every item’s cost and margin, worst food-cost first. Drinks are recipe-costed; food &amp; shakes use their given cost (no recipe needed — production is handled elsewhere).';
+      wireCosting();
+      $('tileNote').innerHTML='Worst food-cost first. <b>Food &amp; shakes</b>: edit cost and price right here. <b>Drinks</b>: cost is set in Recipes (shown here); their price is editable here too. Every edit flows into Daily, Monthly and Overall.';
       return;
     }
     if(view==='overall'){
