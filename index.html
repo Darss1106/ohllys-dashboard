@@ -740,7 +740,7 @@
     fi.addEventListener('change', function(){ var f=fi.files&&fi.files[0]; if(!f) return;
       var rd=new FileReader();
       rd.onload=function(){ var res; var txt=''+rd.result;
-        try{ res=importPOSText(txt); if(!res.ok){ var r2=importTxnText(txt); if(r2.ok) res=r2; } }catch(e){ res={ok:false,err:(e&&e.message)||'parse error'}; }
+        try{ res=importTxnText(txt); if(!res.ok){ var r2=importPOSText(txt); if(r2.ok) res=r2; } }catch(e){ res={ok:false,err:(e&&e.message)||'parse error'}; }
         showView(curIt); var ul=$('upList'); if(ul) ul.innerHTML=importSummaryHTML(res,f.name); fi.value=''; };
       rd.readAsText(f);
     });
