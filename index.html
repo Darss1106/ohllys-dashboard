@@ -706,18 +706,29 @@
         if(r.tn){ inStore[d].tx[r.tn]=(inStore[d].tx[r.tn]||0)+r.qty*r.price; }
       } else { excl[r.name]=(excl[r.name]||0)+r.qty; }
     });
-    var imp=getImported(), units=0, dd;
-    // Replace each day present in the file (a day's report is authoritative for that day), so stale items don't linger.
-    for(dd in inStore){ imp[dd]={m:inStore[dd].m, o:inStore[dd].o}; for(k in inStore[dd].o){ units+=inStore[dd].o[k]; } }
-    saveImported(imp);
-    try{ var snap=JSON.parse(LS.get('ohlly_pricesnap')||'{}'); for(dd in inStore){ delete snap[dd]; } LS.set('ohlly_pricesnap', JSON.stringify(snap)); }catch(e){}
-    // Per-day map of Ohlly's transaction# -> Ohlly's amount, so a payment report can be filtered to Ohlly's only
+    var imp=getImported(), units=0, dd, kk3;
     var txAll={}; try{ txAll=JSON.parse(LS.get('ohlly_txpay')||'{}'); }catch(e){}
-    for(dd in inStore){ txAll[dd]=inStore[dd].tx||{}; }
+    var fpi=fpImpAll();
+    var snap={}; try{ snap=JSON.parse(LS.get('ohlly_pricesnap')||'{}'); }catch(e){}
+    // These range-exports overlap and are partial at the range edges. For each day, keep the MOST COMPLETE
+    // version (most Ohlly's units), and carry that version's Foodpanda + transaction map together.
+    var fileDays={}; for(dd in inStore) fileDays[dd]=1; for(dd in fpd) fileDays[dd]=1;
+    for(dd in fileDays){
+      var ns=(inStore[dd]&&inStore[dd].o)||{};
+      var nu=0; for(kk3 in ns) nu+=ns[kk3];
+      var ou=0; if(imp[dd]&&imp[dd].o){ for(kk3 in imp[dd].o) ou+=imp[dd].o[kk3]; }
+      if(imp[dd] && nu<ou) continue; // existing day is more complete — keep it
+      imp[dd]={m:(inStore[dd]&&inStore[dd].m)||(imp[dd]&&imp[dd].m)||reportMonthOf({d:dd}), o:ns};
+      txAll[dd]=(inStore[dd]&&inStore[dd].tx)||{};
+      if(fpd[dd]){ var rows=[]; for(kk3 in fpd[dd]) rows.push([kk3, fpd[dd][kk3].q, fpd[dd][kk3].p]); fpi[dd]=rows; }
+      delete snap[dd];
+    }
+    for(dd in fileDays){ if(imp[dd]&&imp[dd].o){ for(kk3 in imp[dd].o) units+=imp[dd].o[kk3]; } }
+    saveImported(imp);
     LS.set('ohlly_txpay', JSON.stringify(txAll));
-    var fpi=fpImpAll(), fpDays=0;
-    for(dd in fpd){ fpDays++; var rows=[]; for(k in fpd[dd]) rows.push([k, fpd[dd][k].q, fpd[dd][k].p]); fpi[dd]=rows; }
     LS.set('ohlly_fp_imported', JSON.stringify(fpi));
+    LS.set('ohlly_pricesnap', JSON.stringify(snap));
+    var fpDays=0; for(dd in fpd) fpDays++;
     rebuildReports();
     var dayList=Object.keys(inStore).sort(function(a,b){ return repDateKey({d:a})-repDateKey({d:b}); });
     if(dayList.length) selDate=dayList[dayList.length-1];
