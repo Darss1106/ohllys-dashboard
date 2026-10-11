@@ -374,6 +374,7 @@
   function recipeCost(nm){ var s=0; (RECIPE[nm]||[]).forEach(function(l){ s+=recipeLineCost(l); }); return s; }
   function ovrMap(key){ try{ var o=JSON.parse(LS.get(key)||'null'); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
   function applyOverrides(){
+    var ci=ovrMap('ohlly_items'); for(var cn in ci){ if(Array.isArray(ci[cn])){ var _p=parseFloat(ci[cn][0]), _c=parseFloat(ci[cn][1]); if(!ITEM[cn]) ITEM[cn]=[isNaN(_p)?0:_p, isNaN(_c)?0:_c]; } }
     var ro=ovrMap('ohlly_rate'); for(var k in ro){ var rv=parseFloat(ro[k]); if(!isNaN(rv)){ if(RATES[k]) RATES[k].rate=rv; else RATES[k]={unit:'g',rate:rv}; } }
     var reo=ovrMap('ohlly_recipe'); for(var nm in reo){ if(Array.isArray(reo[nm])) RECIPE[nm]=reo[nm].map(function(l){ return [l[0], l[1]]; }); }
     var po=ovrMap('ohlly_price'); for(var nm2 in po){ var pv=parseFloat(po[nm2]); if(ITEM[nm2]&&!isNaN(pv)) ITEM[nm2][0]=pv; }
@@ -444,7 +445,7 @@
           ]},
           {icon:"link", label:"Cross-reference", expand:true, open:true, title:"Cross-reference", desc:"The engine: it joins the POS and your notebook by item name, then costs and reconciles.", children:[
             {label:"Match Item Names", view:"matchnames", title:"Match Item Names", desc:"Line up each POS item name with your menu/recipe name — the join that makes everything automatic."},
-            {label:"Cost of Products", view:"costing", title:"Cost of Products", desc:"Every item's cost, price, gross and food-cost % — worst margin first."},
+            {label:"Products and costs", view:"costing", title:"Products and costs", desc:"Every product's cost, price, gross and food-cost % — and add your own products."},
             {label:"Ingredient Usage", view:"uselog", title:"Ingredient Usage", desc:"Log ingredients used outside of sales — prep, waste, staff, food. Auto-costs each entry and feeds Stock Used + Reorder."},
             {label:"Stock Used + Reorder", view:"stock", title:"Stock Used + Reorder", desc:"Theoretical usage → what dropped below par and needs reordering."}
           ]},
@@ -1460,7 +1461,7 @@
       });
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
       wireRecipes();
-      $('tileNote').innerHTML='Change an <b>amount</b> or <b>price</b> and it saves instantly and flows into Daily, Monthly, Cost of Products and Overall. To change what an <b>ingredient costs per unit</b>, edit it once in <b>Ingredient Prices &amp; Costs</b> — that reprices every drink that uses it. Food &amp; shakes use their given cost.';
+      $('tileNote').innerHTML='Change an <b>amount</b> or <b>price</b> and it saves instantly and flows into Daily, Monthly, Products and costs, and Overall. To change what an <b>ingredient costs per unit</b>, edit it once in <b>Ingredient Prices &amp; Costs</b> — that reprices every drink that uses it. Food &amp; shakes use their given cost.';
       return;
     }
     if(view==='tally' && bus.reports){
@@ -1715,20 +1716,43 @@
       g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>Highest FC%</div><div class="v" style="font-size:18px">'+worst[0]+'</div><div class="s">'+worst[4].toFixed(1)+'%</div></div>';
       g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Best margin</div><div class="v" style="font-size:18px">'+best[0]+'</div><div class="s">'+best[4].toFixed(1)+'% FC</div></div>';
       $('tileGrid').innerHTML=g;
+      var custom=ovrMap('ohlly_items');
       var h='<div class="uprow" style="margin-bottom:8px"><span class="uplabel">Type to edit — food &amp; shake costs, and any price. Drink costs come from Recipes.</span></div>';
+      h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><input class="exin" id="npName" placeholder="New product name" style="flex:1;min-width:150px;border:1px solid var(--line-strong)"><input class="exin exn" id="npCost" placeholder="Cost" style="width:76px;border:1px solid var(--line-strong)"><input class="exin exn" id="npPrice" placeholder="Price" style="width:76px;border:1px solid var(--line-strong)"><button class="upbtn" id="npAdd">+ Add product</button></div>';
+      h+='<div id="npMsg" style="font-size:12px;min-height:14px;margin-bottom:8px"></div>';
       h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Cost</th><th class="n">Price</th><th class="n">Gross</th><th class="n">FC%</th><th>Source</th></tr></thead><tbody id="csBody">';
-      rows.forEach(function(r){ var nm=r[0], isRec=(r[5]==='recipe'); var col=r[4]>=50?'var(--red)':(r[4]>=40?'var(--amber)':'var(--good)');
+      rows.forEach(function(r){ var nm=r[0], isRec=(r[5]==='recipe'), isCustom=!!custom[nm]; var col=r[4]>=50?'var(--red)':(r[4]>=40?'var(--amber)':'var(--good)');
         h+='<tr data-item="'+esc(nm)+'" data-rec="'+(isRec?1:0)+'"><td>'+nm+'</td>';
         h+='<td class="n">'+(isRec ? P+money(r[1]) : '<input class="exin exn csCost" value="'+r[1]+'" style="width:76px;text-align:right">')+'</td>';
         h+='<td class="n"><input class="exin exn csPrice" value="'+r[2]+'" style="width:76px;text-align:right"></td>';
         h+='<td class="n csGross">'+P+money(r[3])+'</td>';
         h+='<td class="n csFC" style="color:'+col+';font-weight:600">'+r[4].toFixed(1)+'%</td>';
-        h+='<td>'+(isRec?'recipe':'<span style="color:var(--ink-faint)">given cost</span>')+'</td></tr>';
+        h+='<td>'+(isRec?'recipe':(isCustom?'<button class="exdel csDel" title="Delete product">&times;</button> <span style="color:var(--ink-faint)">added</span>':'<span style="color:var(--ink-faint)">given cost</span>'))+'</td></tr>';
       });
       h+='</tbody></table></div>';
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
       wireCosting();
-      $('tileNote').innerHTML='Worst food-cost first. <b>Food &amp; shakes</b>: edit cost and price right here. <b>Drinks</b>: cost is set in Recipes (shown here); their price is editable here too. Every edit flows into Daily, Monthly and Overall.';
+      (function(){
+        var addBtn=$('npAdd'), msg=$('npMsg');
+        if(addBtn) addBtn.addEventListener('click', function(){
+          var nm=($('npName').value||'').trim(), cst=parseFloat(($('npCost').value||'').replace(/,/g,'')), prc=parseFloat(($('npPrice').value||'').replace(/,/g,''));
+          if(!nm){ if(msg) msg.innerHTML='<span style="color:var(--red)">Enter a product name.</span>'; return; }
+          if(ITEM[nm]){ if(msg) msg.innerHTML='<span style="color:var(--red)">“'+nm+'” already exists.</span>'; return; }
+          if(isNaN(prc)) prc=0; if(isNaN(cst)) cst=0;
+          var items=ovrMap('ohlly_items'); items[nm]=[prc,cst]; LS.set('ohlly_items', JSON.stringify(items));
+          applyOverrides(); if(typeof rebuildReports==='function') rebuildReports(); showView(curIt);
+        });
+        Array.prototype.forEach.call(($('csBody')||document.body).querySelectorAll('.csDel'), function(b){ b.addEventListener('click', function(){
+          var tr=b.closest('tr[data-item]'); if(!tr) return; var nm=tr.getAttribute('data-item');
+          if(!window.confirm('Delete product “'+nm+'”? It is removed from the list.')) return;
+          var items=ovrMap('ohlly_items'); delete items[nm]; LS.set('ohlly_items', JSON.stringify(items));
+          var co=ovrMap('ohlly_cost'); delete co[nm]; LS.set('ohlly_cost', JSON.stringify(co));
+          var po=ovrMap('ohlly_price'); delete po[nm]; LS.set('ohlly_price', JSON.stringify(po));
+          if(ITEM[nm]) delete ITEM[nm];
+          applyOverrides(); if(typeof rebuildReports==='function') rebuildReports(); showView(curIt);
+        }); });
+      })();
+      $('tileNote').innerHTML='Add your own products with the <b>+ Add product</b> box (name, cost, price). <b>Food &amp; shakes</b>: edit cost and price here. <b>Drinks</b>: cost comes from Recipes. Every edit flows into Daily, Monthly and Overall.';
       return;
     }
     if(view==='overall'){
