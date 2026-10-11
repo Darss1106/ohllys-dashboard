@@ -615,6 +615,9 @@
   function repDateKey(r){ var mo=reportMonthOf(r); var mm=(mo.match(/[A-Za-z]{3}/)||[''])[0]; var yy=(mo.match(/(19|20)\d\d/)||['2026'])[0]; var mi=MONTHS.indexOf(mm); if(mi<0)mi=0; var dayM=(''+r.d).match(/\b(\d{1,2})\b/); var day=dayM?parseInt(dayM[1],10):0; return parseInt(yy,10)*10000+mi*100+day; }
   // Per-day price/cost snapshot so editing today's prices never rewrites past days.
   function getSnap(){ try{ var s=JSON.parse(LS.get('ohlly_pricesnap')||'null'); if(s&&typeof s==='object') return s; }catch(e){} return {}; }
+  // Per-day manual correction of the sold items — [[item,qty,price,cost],...]. When set, it IS the day.
+  function getDaySet(){ try{ var s=JSON.parse(LS.get('ohlly_dayset')||'null'); if(s&&typeof s==='object') return s; }catch(e){} return {}; }
+  function saveDaySet(o){ LS.set('ohlly_dayset', JSON.stringify(o)); }
   function linesFor(reps, month, withManual){ var lines=[]; (reps||[]).forEach(function(r){ (r.order||[]).forEach(function(o){ lines.push(o); }); }); if(withManual){ getManual(month).forEach(function(mm){ if(mm[0]) lines.push([mm[0], parseFloat(mm[1])||0]); }); } return lines; }
   function rebuildReports(){
     var imp=getImported(), byDate={}, k;
@@ -624,8 +627,10 @@
       byDate[d].imported=true; if(rec.m) byDate[d].m=rec.m;
       for(k in rec.o) byDate[d].order[k]=rec.o[k];
     });
-    var snap=getSnap(), snapDirty=false;
+    var snap=getSnap(), snapDirty=false, dset=getDaySet();
+    Object.keys(dset).forEach(function(d){ if(!byDate[d]) byDate[d]={d:d,m:reportMonthOf({d:d}),live:true,imported:false,order:{}}; });
     var arr=Object.keys(byDate).map(function(d){ var o=byDate[d], items=Object.keys(o.order);
+      if(dset[d] && dset[d].length!=null){ var ord2=dset[d].map(function(l){ return [l[0], +l[1]||0, +l[2]||0, +l[3]||0]; }); return {d:o.d,m:o.m,live:o.live,imported:o.imported,edited:true,order:ord2}; }
       if(!snap[d]){ var sm={}; items.forEach(function(nm){ if(ITEM[nm]) sm[nm]=[ITEM[nm][0], ITEM[nm][1]]; }); snap[d]=sm; snapDirty=true; }
       var ds=snap[d]||{}, ord=[], kk;
       for(kk in o.order){ var pc=ds[kk], it=ITEM[kk]; var price=pc?pc[0]:(it?it[0]:0), cost=pc?pc[1]:(it?it[1]:0); ord.push([kk,o.order[kk],price,cost]); }
@@ -1959,46 +1964,60 @@
     ["OFF THE GRILL", ["Alfredo Pasta","Spaghetti w/ Meatballs","Mojos","French Fries","Chicken Wings"]]
   ];
   var MENU_DISP = {"Tocino Silog":"Tocino/Chorizo Silog"};
-  function itemOptions(){
-    var o='<option value="">— pick an item —</option>', seen={};
-    MENU_GROUPS.forEach(function(g){ var inner=''; g[1].forEach(function(nm){ if(ITEM[nm]!=null){ inner+='<option value="'+esc(nm)+'">'+esc(MENU_DISP[nm]||nm)+'</option>'; seen[nm]=1; } }); if(inner) o+='<optgroup label="'+g[0]+'">'+inner+'</optgroup>'; });
-    var extra=''; Object.keys(ITEM).forEach(function(nm){ if(!seen[nm]) extra+='<option value="'+esc(nm)+'">'+esc(nm)+'</option>'; });
+  function itemOptions(sel){
+    function opt(nm,disp){ return '<option value="'+esc(nm)+'"'+(nm===sel?' selected':'')+'>'+esc(disp||nm)+'</option>'; }
+    var o='<option value=""'+(sel?'':' selected')+'>— pick an item —</option>', seen={};
+    MENU_GROUPS.forEach(function(g){ var inner=''; g[1].forEach(function(nm){ if(ITEM[nm]!=null){ inner+=opt(nm, MENU_DISP[nm]||nm); seen[nm]=1; } }); if(inner) o+='<optgroup label="'+g[0]+'">'+inner+'</optgroup>'; });
+    var extra=''; Object.keys(ITEM).forEach(function(nm){ if(!seen[nm]) extra+=opt(nm,nm); });
     if(extra) o+='<optgroup label="OTHER">'+extra+'</optgroup>';
     return o;
   }
+  function dayTiles(r, tQ, tS, tC){ var tG=tS-tC, tF=tS?100*tC/tS:0;
+    var g='<div class="tile"><div class="k"><span class="dot d-blue"></span>Sales</div><div class="v">'+P+fmt(Math.round(tS))+'</div><div class="s">'+tQ+' units · '+r.d+'</div></div>';
+    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Gross profit</div><div class="v">'+P+money(tG)+'</div><div class="s">before opex</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>COGS</div><div class="v">'+P+money(tC)+'</div><div class="s">from recipe costs</div></div>';
+    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Food cost</div><div class="v">'+tF.toFixed(1)+'%</div><div class="s">target ≤ 35%</div></div>';
+    $('tileGrid').innerHTML=g; }
   function renderReportBody(bus){
     var r=null; bus.reports.forEach(function(x){ if(x.d===selDate) r=x; });
     if(!r) return;
-    var manual=getManual(r.d);
-    var c=computeReport(filterOrder(r.order.concat(manual)));
-    var g='';
-    g+='<div class="tile"><div class="k"><span class="dot d-blue"></span>Sales</div><div class="v">'+P+fmt(Math.round(c.sales))+'</div><div class="s">'+c.units+' units · '+r.d+'</div></div>';
-    g+='<div class="tile good"><div class="k"><span class="dot d-green"></span>Gross profit</div><div class="v">'+P+money(c.gross)+'</div><div class="s">before opex</div></div>';
-    g+='<div class="tile"><div class="k"><span class="dot d-amber"></span>COGS</div><div class="v">'+P+money(c.cogs)+'</div><div class="s">from recipe costs</div></div>';
-    g+='<div class="tile"><div class="k"><span class="dot d-red"></span>Food cost</div><div class="v">'+c.fc.toFixed(1)+'%</div><div class="s">target ≤ 35%</div></div>';
-    $('tileGrid').innerHTML=g;
-    var h='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Sales</th><th class="n">COGS</th><th class="n">Gross</th><th class="n">FC%</th></tr></thead><tbody>';
-    c.rows.forEach(function(x){ h+='<tr><td>'+x[0]+'</td><td class="n">'+x[1]+'</td><td class="n">'+P+money(x[2])+'</td><td class="n">'+P+money(x[3])+'</td><td class="n">'+P+money(x[4])+'</td><td class="n">'+x[5].toFixed(1)+'%</td></tr>'; });
-    h+='<tr class="tot"><td>Total</td><td class="n">'+c.units+'</td><td class="n">'+P+money(c.sales)+'</td><td class="n">'+P+money(c.cogs)+'</td><td class="n">'+P+money(c.gross)+'</td><td class="n">'+c.fc.toFixed(1)+'%</td></tr>';
+    var dset=getDaySet(), edited=!!(dset[r.d]), lines;
+    if(edited){ lines=dset[r.d].map(function(l){ return [l[0], +l[1]||0, +l[2]||0, +l[3]||0]; }); }
+    else { var c0=computeReport(filterOrder(r.order.concat(getManual(r.d)))); lines=c0.rows.map(function(x){ var q=x[1]; return [x[0], q, q?x[2]/q:0, q?x[3]/q:0]; }); }
+    var tQ=0,tS=0,tC=0; lines.forEach(function(l){ tQ+=l[1]; tS+=l[1]*l[2]; tC+=l[1]*l[3]; });
+    dayTiles(r, tQ, tS, tC);
+    var h='<div class="uprow" style="margin-bottom:6px"><span class="uplabel">'+(edited?'Edited — your corrected numbers for '+r.d+'. ':'Fix a POS mistake — edit the <b>quantity</b>, <b>sales</b>, or <b>product</b>; remove or add a line.')+'</span>'+(edited?'<button class="upbtn" id="dsReset" style="background:var(--side);color:var(--ink);border:1px solid var(--line-strong)">↺ Reset to imported</button>':'')+'</div>';
+    h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Sales</th><th class="n">COGS</th><th class="n">Gross</th><th class="n">FC%</th><th></th></tr></thead><tbody id="dsBody">';
+    lines.forEach(function(l,i){ var q=l[1],price=l[2],cost=l[3],sales=q*price,cg=q*cost,gross=sales-cg,fc=sales?100*cg/sales:0;
+      h+='<tr data-i="'+i+'" data-price="'+price+'" data-cost="'+cost+'"><td><select class="exin dsItem">'+itemOptions(l[0])+'</select></td><td><input class="exin exn dsQty" value="'+q+'" style="width:56px;text-align:right"></td><td><input class="exin exn dsSales" value="'+(Math.round(sales*100)/100)+'" style="width:84px;text-align:right"></td><td class="n dsCogs">'+P+money(cg)+'</td><td class="n dsGross">'+P+money(gross)+'</td><td class="n dsFC">'+fc.toFixed(1)+'%</td><td><button class="exdel dsDel" title="Remove">&times;</button></td></tr>';
+    });
+    h+='<tr class="tot"><td>Total</td><td class="n" id="dsTQ">'+tQ+'</td><td class="n" id="dsTS">'+P+money(tS)+'</td><td class="n" id="dsTC">'+P+money(tC)+'</td><td class="n" id="dsTG">'+P+money(tS-tC)+'</td><td class="n" id="dsTF">'+(tS?(100*tC/tS).toFixed(1):'0.0')+'%</td><td></td></tr>';
     h+='</tbody></table></div>';
-    h+='<h3 style="font-family:\'Bricolage Grotesque\',sans-serif;font-size:16px;margin:26px 0 6px;color:var(--ink)">Add items sold manually</h3>';
-    h+='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">For items you didn’t export — pick one, set the quantity, Add. They merge into the totals above for <b>'+r.d+'</b>.</div>';
-    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><select class="exin" id="manItem" style="flex:1;min-width:200px;border:1px solid var(--line-strong)">'+itemOptions()+'</select><input class="exin exn" id="manQty" value="1" style="max-width:70px;border:1px solid var(--line-strong)"><button class="upbtn" id="manAdd">+ Add</button></div>';
-    if(manual.length){
-      h+='<div class="rtwrap"><table class="rt exsheet"><thead><tr><th>Manually added</th><th class="n">Qty</th><th class="n">Sales</th><th class="n">COGS</th><th></th></tr></thead><tbody id="manBody">';
-      manual.forEach(function(m,i){ var it=ITEM[m[0]]||[0,0]; var q=parseFloat(m[1])||0; h+='<tr data-i="'+i+'"><td>'+m[0]+'</td><td><input class="exin exn manq" value="'+esc(m[1])+'" style="max-width:60px"></td><td class="n">'+P+money(it[0]*q)+'</td><td class="n">'+P+money(it[1]*q)+'</td><td><button class="exdel" title="Remove">&times;</button></td></tr>'; });
-      h+='</tbody></table></div>';
-    }
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0"><select class="exin" id="dsAddItem" style="flex:1;min-width:180px;border:1px solid var(--line-strong)">'+itemOptions()+'</select><input class="exin exn" id="dsAddQty" value="1" style="max-width:70px;border:1px solid var(--line-strong)"><button class="upbtn" id="dsAdd">+ Add item</button></div>';
     h+=fpSectionHTML(r.d);
     $('reportTable').innerHTML=h; $('reportTable').hidden=false;
     wireFp(r.d);
-    if($('manAdd')) $('manAdd').addEventListener('click', function(){ var nm=$('manItem').value, q=parseFloat($('manQty').value)||0; if(!nm||q<=0){ return; } var rows=getManual(r.d); rows.push([nm,q]); saveManual(r.d,rows); renderReportBody(bus); });
-    var mb=$('manBody');
-    if(mb){
-      Array.prototype.forEach.call(mb.querySelectorAll('.manq'), function(inp){ inp.addEventListener('change', function(){ var rows=getManual(r.d); var i=+inp.closest('tr[data-i]').getAttribute('data-i'); rows[i][1]=parseFloat(inp.value)||0; saveManual(r.d,rows); renderReportBody(bus); }); });
-      Array.prototype.forEach.call(mb.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=getManual(r.d); rows.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); saveManual(r.d,rows); renderReportBody(bus); }); });
-    }
-    $('tileNote').innerHTML = (r.live?'Live data — '+r.d+'.':'Sample data for '+r.d+'.')+' <b>+ Add file</b> (top) imports a POS “Category Sold” export and auto-fills the day — upload each category file and they fold together. <b>Add items sold manually</b> covers anything not in an export. '+(fpSectionHTML(r.d)?'Foodpanda is tracked separately below. ':'')+'Net profit needs the day’s expenses.';
+    wireDailyEdit(bus, r);
+    $('tileNote').innerHTML='Fix any POS mistake right here — change <b>quantity</b>, <b>sales</b>, or the <b>product</b>, remove a wrong line, or <b>+ Add item</b> for a missing one. Edits for '+r.d+' stick and flow into Monthly and Overall. '+(edited?'<b>Reset to imported</b> restores the file’s numbers. ':'')+'Foodpanda is tracked separately below.';
+  }
+  function wireDailyEdit(bus, r){
+    var body=$('dsBody'); if(!body) return;
+    function collect(){ var ls=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var item=tr.querySelector('.dsItem').value; if(!item) return; var q=parseFloat((tr.querySelector('.dsQty').value||'0').replace(/,/g,''))||0; var price=parseFloat(tr.getAttribute('data-price'))||0; var cost=parseFloat(tr.getAttribute('data-cost'))||0; ls.push([item,q,price,cost]); }); return ls; }
+    function persist(){ var ds=getDaySet(); ds[r.d]=collect(); saveDaySet(ds); var man={}; try{ man=JSON.parse(LS.get('ohlly_manual')||'{}'); }catch(e){} if(man[r.d]){ delete man[r.d]; LS.set('ohlly_manual', JSON.stringify(man)); } if(typeof rebuildReports==='function') rebuildReports(); }
+    function rowCalc(tr){ var q=parseFloat((tr.querySelector('.dsQty').value||'0').replace(/,/g,''))||0, price=parseFloat(tr.getAttribute('data-price'))||0, cost=parseFloat(tr.getAttribute('data-cost'))||0, sales=q*price, cg=q*cost; tr.querySelector('.dsCogs').textContent=P+money(cg); tr.querySelector('.dsGross').textContent=P+money(sales-cg); tr.querySelector('.dsFC').textContent=(sales?(100*cg/sales).toFixed(1):'0.0')+'%'; }
+    function totals(){ var tQ=0,tS=0,tC=0; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var q=parseFloat((tr.querySelector('.dsQty').value||'0').replace(/,/g,''))||0, price=parseFloat(tr.getAttribute('data-price'))||0, cost=parseFloat(tr.getAttribute('data-cost'))||0; tQ+=q; tS+=q*price; tC+=q*cost; });
+      if($('dsTQ'))$('dsTQ').textContent=tQ; if($('dsTS'))$('dsTS').textContent=P+money(tS); if($('dsTC'))$('dsTC').textContent=P+money(tC); if($('dsTG'))$('dsTG').textContent=P+money(tS-tC); if($('dsTF'))$('dsTF').textContent=(tS?(100*tC/tS).toFixed(1):'0.0')+'%'; dayTiles(r, tQ, tS, tC); }
+    Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){
+      var qIn=tr.querySelector('.dsQty'), sIn=tr.querySelector('.dsSales'), sel=tr.querySelector('.dsItem');
+      qIn.addEventListener('input', function(){ var q=parseFloat((qIn.value||'0').replace(/,/g,''))||0, price=parseFloat(tr.getAttribute('data-price'))||0; sIn.value=Math.round(q*price*100)/100; rowCalc(tr); totals(); });
+      qIn.addEventListener('change', persist);
+      sIn.addEventListener('input', function(){ var q=parseFloat((qIn.value||'0').replace(/,/g,''))||0, sales=parseFloat((sIn.value||'0').replace(/,/g,''))||0, price=q?sales/q:0; tr.setAttribute('data-price', price); rowCalc(tr); totals(); });
+      sIn.addEventListener('change', persist);
+      sel.addEventListener('change', function(){ var it=ITEM[sel.value]||[0,0]; tr.setAttribute('data-price', it[0]); tr.setAttribute('data-cost', it[1]); persist(); renderReportBody(bus); });
+    });
+    Array.prototype.forEach.call(body.querySelectorAll('.dsDel'), function(b){ b.addEventListener('click', function(){ var tr=b.closest('tr[data-i]'); if(tr) tr.parentNode.removeChild(tr); persist(); renderReportBody(bus); }); });
+    var addBtn=$('dsAdd'); if(addBtn) addBtn.addEventListener('click', function(){ var nm=$('dsAddItem').value, q=parseFloat($('dsAddQty').value)||0; if(!nm||q<=0) return; var it=ITEM[nm]||[0,0]; var cur=collect(); cur.push([nm,q,it[0],it[1]]); var ds=getDaySet(); ds[r.d]=cur; saveDaySet(ds); var man={}; try{man=JSON.parse(LS.get('ohlly_manual')||'{}');}catch(e){} if(man[r.d]){ delete man[r.d]; LS.set('ohlly_manual',JSON.stringify(man)); } if(typeof rebuildReports==='function') rebuildReports(); renderReportBody(bus); });
+    var rsb=$('dsReset'); if(rsb) rsb.addEventListener('click', function(){ if(!window.confirm('Reset '+r.d+' to the imported numbers? Your manual edits for this day are discarded.')) return; var ds=getDaySet(); delete ds[r.d]; saveDaySet(ds); if(typeof rebuildReports==='function') rebuildReports(); renderReportBody(bus); });
   }
 
   navRoot.addEventListener('click', function(e){
@@ -2024,7 +2043,7 @@
 
   // Per-business data keys cleared by the Reset button (menu/recipe config like ohlly_pos_alias is kept).
   var RESET_KEYS={
-    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}','ohlly_pricesnap':'{}' },
+    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}','ohlly_pricesnap':'{}','ohlly_dayset':'{}' },
     pyu:{ 'pyu_prices':'null','pyu_salary':'null','pyu_exp':'null','pyu_cheques':'null','pyu_paid':'{}','pyu_deadlines':'{}','pyu_terms':'null','pyu_stmt_docs':'null','pyu_customers':'null' }
   };
   function resetBusinessData(key){
