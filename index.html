@@ -379,7 +379,7 @@
     var reo=ovrMap('ohlly_recipe'); for(var nm in reo){ if(Array.isArray(reo[nm])) RECIPE[nm]=reo[nm].map(function(l){ return [l[0], l[1]]; }); }
     var po=ovrMap('ohlly_price'); for(var nm2 in po){ var pv=parseFloat(po[nm2]); if(ITEM[nm2]&&!isNaN(pv)) ITEM[nm2][0]=pv; }
     Object.keys(RECIPE).forEach(function(nm){ if(ITEM[nm]){ ITEM[nm][1]=Math.round(recipeCost(nm)*100)/100; } });
-    var co=ovrMap('ohlly_cost'); for(var nmc in co){ var cv=parseFloat(co[nmc]); if(ITEM[nmc]&&!(nmc in RECIPE)&&!isNaN(cv)) ITEM[nmc][1]=cv; }
+    var co=ovrMap('ohlly_cost'); for(var nmc in co){ var cv=parseFloat(co[nmc]); if(ITEM[nmc]&&!isNaN(cv)) ITEM[nmc][1]=cv; }
   }
   var POSEXPORT = [
     ["08:48 PM","0004612","WALK-IN","ICED HONEY CINNAMON","Honey Cinnamon Oat",1,"195.00"],
@@ -1047,8 +1047,8 @@
   }
   function wireCosting(){
     var body=$('csBody'); if(!body) return;
-    function recalc(tr){ var nm=tr.getAttribute('data-item'), isRec=tr.getAttribute('data-rec')==='1';
-      var cIn=tr.querySelector('.csCost'); var cost = isRec ? (ITEM[nm]?ITEM[nm][1]:0) : (parseFloat(((cIn&&cIn.value)||'0').replace(/,/g,''))||0);
+    function recalc(tr){
+      var cIn=tr.querySelector('.csCost'); var cost = parseFloat(((cIn&&cIn.value)||'0').replace(/,/g,''))||0;
       var pIn=tr.querySelector('.csPrice'); var price=parseFloat(((pIn&&pIn.value)||'0').replace(/,/g,''))||0;
       var gross=price-cost, fc=price?100*cost/price:0;
       var gEl=tr.querySelector('.csGross'); if(gEl) gEl.textContent=P+money(gross);
@@ -1065,6 +1065,7 @@
     Array.prototype.forEach.call(body.querySelectorAll('tr[data-item]'), function(tr){
       Array.prototype.forEach.call(tr.querySelectorAll('.csCost,.csPrice'), function(inp){ inp.addEventListener('input', function(){ recalc(tr); save(); }); });
     });
+    Array.prototype.forEach.call(body.querySelectorAll('.csRev'), function(b){ b.addEventListener('click', function(){ var tr=b.closest('tr[data-item]'); if(!tr) return; var nm=tr.getAttribute('data-item'); var co=ovrMap('ohlly_cost'); delete co[nm]; LS.set('ohlly_cost', JSON.stringify(co)); applyOverrides(); if(typeof rebuildReports==='function') rebuildReports(); showView(curIt); }); });
   }
   function getIngredients(){ try{ var s=JSON.parse(LS.get('ohlly_ingredients')||'null'); if(Array.isArray(s)) return s; }catch(e){} return INGREDIENTS.map(function(r){ return r.slice(); }); }
   function saveIngredients(rows){ LS.set('ohlly_ingredients', JSON.stringify(rows)); }
@@ -1740,13 +1741,17 @@
       h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><input class="exin" id="npName" placeholder="New product name" style="flex:1;min-width:150px;border:1px solid var(--line-strong)"><input class="exin exn" id="npCost" placeholder="Cost" style="width:76px;border:1px solid var(--line-strong)"><input class="exin exn" id="npPrice" placeholder="Price" style="width:76px;border:1px solid var(--line-strong)"><button class="upbtn" id="npAdd">+ Add product</button></div>';
       h+='<div id="npMsg" style="font-size:12px;min-height:14px;margin-bottom:8px"></div>';
       h+='<div class="rtwrap"><table class="rt"><thead><tr><th>Item</th><th class="n">Cost</th><th class="n">Price</th><th class="n">Gross</th><th class="n">FC%</th><th>Source</th></tr></thead><tbody id="csBody">';
+      var costOvr=ovrMap('ohlly_cost');
       rows.forEach(function(r){ var nm=r[0], isRec=(r[5]==='recipe'), isCustom=!!custom[nm]; var col=r[4]>=50?'var(--red)':(r[4]>=40?'var(--amber)':'var(--good)');
         h+='<tr data-item="'+esc(nm)+'" data-rec="'+(isRec?1:0)+'"><td>'+nm+'</td>';
-        h+='<td class="n">'+(isRec ? P+money(r[1]) : '<input class="exin exn csCost" value="'+r[1]+'" style="width:76px;text-align:right">')+'</td>';
+        h+='<td class="n"><input class="exin exn csCost" value="'+r[1]+'" style="width:76px;text-align:right"></td>';
         h+='<td class="n"><input class="exin exn csPrice" value="'+r[2]+'" style="width:76px;text-align:right"></td>';
         h+='<td class="n csGross">'+P+money(r[3])+'</td>';
         h+='<td class="n csFC" style="color:'+col+';font-weight:600">'+r[4].toFixed(1)+'%</td>';
-        h+='<td>'+(isRec?'recipe':(isCustom?'<button class="exdel csDel" title="Delete product">&times;</button> <span style="color:var(--ink-faint)">added</span>':'<span style="color:var(--ink-faint)">given cost</span>'))+'</td></tr>';
+        var src = isCustom ? '<button class="exdel csDel" title="Delete product">&times;</button> <span style="color:var(--ink-faint)">added</span>'
+          : (isRec ? ('recipe'+(costOvr[nm]!=null?' <button class="csRev" title="Use recipe cost" style="border:1px solid var(--line-strong);background:var(--side);color:var(--ink);border-radius:6px;padding:1px 6px;font-size:11px;cursor:pointer">↺ recipe</button>':''))
+                   : '<span style="color:var(--ink-faint)">given cost</span>');
+        h+='<td>'+src+'</td></tr>';
       });
       h+='</tbody></table></div>';
       $('reportTable').innerHTML=h; $('reportTable').hidden=false;
@@ -1771,7 +1776,7 @@
           applyOverrides(); if(typeof rebuildReports==='function') rebuildReports(); showView(curIt);
         }); });
       })();
-      $('tileNote').innerHTML='Add your own products with the <b>+ Add product</b> box (name, cost, price). <b>Food &amp; shakes</b>: edit cost and price here. <b>Drinks</b>: cost comes from Recipes. Every edit flows into Daily, Monthly and Overall.';
+      $('tileNote').innerHTML='Edit the <b>cost</b> and <b>price</b> of any product here — food, shakes and drinks. A drink’s cost starts from its <b>Recipe</b>; type a new cost to override it, or tap <b>↺ recipe</b> to go back to the recipe cost. Add your own products with <b>+ Add product</b>. Every edit flows into Daily, Monthly and Overall.';
       return;
     }
     if(view==='overall'){
