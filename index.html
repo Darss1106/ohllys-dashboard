@@ -698,7 +698,11 @@
     // Groups: 7 = unit selling price (list), 8 = line total actually charged (= qty×unit, or less when discounted).
     var rx=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?\s*\|\s*(\d{6,8})\s*\|[^|]*?(\d+)\s*(?:\|\s*){2,}\d{6}\s*\|\s*([^|]+?)\s*\|\s*[\d.,]+\.\d{2}\s*(?:\|\s*){1,}([\d.,]+\.\d{2})\s*(?:\|\s*){1,}([\d.,]+\.\d{2})/g;
     var m, recs=[];
-    while((m=rx.exec(T))){ var ext=parseFloat((m[8]||'').replace(/,/g,'')); recs.push({mo:parseInt(m[1],10), da:parseInt(m[2],10), yr:parseInt(m[3],10), tn:(m[4]||'').trim(), qty:parseInt(m[5],10)||0, name:(m[6]||'').trim(), price:parseFloat((m[7]||'0').replace(/,/g,''))||0, ext:(isNaN(ext)?null:ext)}); }
+    while((m=rx.exec(T))){ var ext=parseFloat((m[8]||'').replace(/,/g,''));
+      // A discounted line tags the name with the ORIGINAL price, e.g. "HONEY CINNAMON OAT --(P195" (opt. "LESS PWD"),
+      // while the shown selling price is the discounted one. Strip the tag for matching; keep the original for the discount.
+      var rawNm=(m[6]||'').trim(); var om=rawNm.match(/--\s*\(?\s*P\s*([\d.,]+)/i); var orig=om?(parseFloat(om[1].replace(/,/g,''))||null):null; var cleanNm=rawNm.replace(/\s*--\s*\(.*$/i,'').trim();
+      recs.push({mo:parseInt(m[1],10), da:parseInt(m[2],10), yr:parseInt(m[3],10), tn:(m[4]||'').trim(), qty:parseInt(m[5],10)||0, name:cleanNm, price:parseFloat((m[7]||'0').replace(/,/g,''))||0, ext:(isNaN(ext)?null:ext), orig:orig}); }
     return {ok:true, recs:recs};
   }
   function importTxnText(text){
@@ -716,7 +720,7 @@
       if(!fileTx[d][key]) fileTx[d][key]={items:{}, amt:0, fp:{}, act:{}, lst:{}};
       var T=fileTx[d][key];
       if(isFp){ var e=T.fp[canon]||{q:0,p:r.price}; e.q+=r.qty; e.p=r.price; T.fp[canon]=e; }
-      else { var listAmt=r.qty*r.price, actAmt=(r.ext!=null?r.ext:listAmt); T.items[canon]=(T.items[canon]||0)+r.qty; T.amt+=actAmt; T.act[canon]=(T.act[canon]||0)+actAmt; T.lst[canon]=(T.lst[canon]||0)+listAmt; }
+      else { var listAmt=r.qty*(r.orig!=null?r.orig:r.price), actAmt=(r.ext!=null?r.ext:r.qty*r.price); T.items[canon]=(T.items[canon]||0)+r.qty; T.amt+=actAmt; T.act[canon]=(T.act[canon]||0)+actAmt; T.lst[canon]=(T.lst[canon]||0)+listAmt; }
     });
     var imp=getImported();
     var txAll={}; try{ txAll=JSON.parse(LS.get('ohlly_txpay')||'{}'); }catch(e){}
