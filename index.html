@@ -1101,7 +1101,6 @@
 
   // ---------- PYU analysis layer ----------
   function pyuPrices(){ var p={}, base=BUS.pyu.prices, k; for(k in base) p[k]=base[k]; try{ var s=JSON.parse(LS.get('pyu_prices')||'null'); if(s){ for(k in s) p[k]=s[k]; } }catch(e){} return p; }
-  function savePyuPrices(p){ try{ LS.set('pyu_prices', JSON.stringify(p)); }catch(e){} }
   function pyuSal(){ var r={driver:BUS.pyu.salary.driver, helper:BUS.pyu.salary.helper}; try{ var s=JSON.parse(LS.get('pyu_salary')||'null'); if(s){ if(s.driver!=null)r.driver=s.driver; if(s.helper!=null)r.helper=s.helper; } }catch(e){} return r; }
   function savePyuSal(r){ try{ LS.set('pyu_salary', JSON.stringify(r)); }catch(e){} }
   function pyuGetExp(){ try{ var s=JSON.parse(LS.get('pyu_exp')||'null'); if(s) return s; }catch(e){} return BUS.pyu.expenses.map(function(r){return r.slice();}); }
@@ -2048,7 +2047,7 @@
   // Per-business data keys cleared by the Reset button (menu/recipe config like ohlly_pos_alias is kept).
   var RESET_KEYS={
     ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_manual_month':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}','ohlly_pricesnap':'{}','ohlly_dayset':'{}' },
-    pyu:{ 'pyu_prices':'null','pyu_salary':'null','pyu_exp':'null','pyu_cheques':'null','pyu_paid':'{}','pyu_deadlines':'{}','pyu_terms':'null','pyu_stmt_docs':'null','pyu_customers':'null' }
+    pyu:{ 'pyu_prices':'null','pyu_salary':'null','pyu_exp':'null','pyu_cheques':'null','pyu_paid':'{}','pyu_deadlines':'{}','pyu_terms':'null','pyu_stmt_docs':'null','pyu_customers':'null','pyu_dr_files':'[]' }
   };
   function resetBusinessData(key){
     var map=RESET_KEYS[key]||{}; for(var k in map){ LS.set(k, map[k]); }
