@@ -1952,8 +1952,11 @@
       Array.prototype.forEach.call(fb.querySelectorAll('.exdel'), function(b){ b.addEventListener('click', function(){ var rows=getFpManual(key); rows.splice(+b.closest('tr[data-i]').getAttribute('data-i'),1); saveFpManual(key,rows); showView(curIt); }); });
     }
   }
-  function getManual(date){ try{ var all=JSON.parse(LS.get('ohlly_manual')||'{}'); if(all && all[date]) return all[date]; }catch(e){} return []; }
-  function saveManual(date, rows){ try{ var all={}; try{all=JSON.parse(LS.get('ohlly_manual')||'{}');}catch(e){} all[date]=rows; LS.set('ohlly_manual', JSON.stringify(all)); }catch(e){} }
+  // Monthly manual item-adds, keyed by month ("Oct 2026"). Renamed from ohlly_manual for clarity;
+  // reads fall back to the old key so any pre-existing monthly data is picked up transparently.
+  function getManual(month){ try{ var all=JSON.parse(LS.get('ohlly_manual_month')||'{}'); if(all && all[month]!=null) return all[month]; }catch(e){}
+    try{ var old=JSON.parse(LS.get('ohlly_manual')||'{}'); if(old && old[month]!=null) return old[month]; }catch(e){} return []; }
+  function saveManual(month, rows){ try{ var all={}; try{all=JSON.parse(LS.get('ohlly_manual_month')||'{}');}catch(e){} all[month]=rows; LS.set('ohlly_manual_month', JSON.stringify(all)); }catch(e){} }
   var MENU_GROUPS = [
     ["COFFEE", ["Americano","Flat White","Caffe Latte","Cappuccino","Mocha","Spanish Latte","Honey Cinnamon Oat","Sea Salt Caramel","Biscoff Latte","Salted Banana Latte","Double Shot Espresso"]],
     ["MATCHA", ["Matcha Latte","Strawberry Matcha","Sea Salt Matcha","Dirty Matcha","Biscoff Matcha","Banana Bread Matcha"]],
@@ -2004,7 +2007,7 @@
   function wireDailyEdit(bus, r){
     var body=$('dsBody'); if(!body) return;
     function collect(){ var ls=[]; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var item=tr.querySelector('.dsItem').value; if(!item) return; var q=parseFloat((tr.querySelector('.dsQty').value||'0').replace(/,/g,''))||0; var price=parseFloat(tr.getAttribute('data-price'))||0; var cost=parseFloat(tr.getAttribute('data-cost'))||0; ls.push([item,q,price,cost]); }); return ls; }
-    function persist(){ var ds=getDaySet(); ds[r.d]=collect(); saveDaySet(ds); var man={}; try{ man=JSON.parse(LS.get('ohlly_manual')||'{}'); }catch(e){} if(man[r.d]){ delete man[r.d]; LS.set('ohlly_manual', JSON.stringify(man)); } if(typeof rebuildReports==='function') rebuildReports(); }
+    function persist(){ var ds=getDaySet(); ds[r.d]=collect(); saveDaySet(ds); if(typeof rebuildReports==='function') rebuildReports(); }
     function rowCalc(tr){ var q=parseFloat((tr.querySelector('.dsQty').value||'0').replace(/,/g,''))||0, price=parseFloat(tr.getAttribute('data-price'))||0, cost=parseFloat(tr.getAttribute('data-cost'))||0, list=parseFloat(tr.getAttribute('data-list')); if(isNaN(list)) list=price; var sales=q*price, cg=q*cost, disc=Math.max(0,(list-price))*q; tr.querySelector('.dsCogs').textContent=P+money(cg); tr.querySelector('.dsGross').textContent=P+money(sales-cg); tr.querySelector('.dsFC').textContent=(sales?(100*cg/sales).toFixed(1):'0.0')+'%'; var dc=tr.querySelector('.dsDisc'); if(dc){ dc.textContent=disc>0.005?P+money(disc):'—'; dc.style.color=disc>0.005?'var(--amber)':''; dc.style.fontWeight=disc>0.005?'600':''; } }
     function totals(){ var tQ=0,tS=0,tC=0,tD=0; Array.prototype.forEach.call(body.querySelectorAll('tr[data-i]'), function(tr){ var q=parseFloat((tr.querySelector('.dsQty').value||'0').replace(/,/g,''))||0, price=parseFloat(tr.getAttribute('data-price'))||0, cost=parseFloat(tr.getAttribute('data-cost'))||0, list=parseFloat(tr.getAttribute('data-list')); if(isNaN(list)) list=price; tQ+=q; tS+=q*price; tC+=q*cost; tD+=Math.max(0,(list-price))*q; });
       if($('dsTQ'))$('dsTQ').textContent=tQ; if($('dsTS'))$('dsTS').textContent=P+money(tS); if($('dsTD'))$('dsTD').textContent=tD>0.005?P+money(tD):'—'; if($('dsTC'))$('dsTC').textContent=P+money(tC); if($('dsTG'))$('dsTG').textContent=P+money(tS-tC); if($('dsTF'))$('dsTF').textContent=(tS?(100*tC/tS).toFixed(1):'0.0')+'%'; dayTiles(r, tQ, tS, tC, tD); }
@@ -2017,7 +2020,7 @@
       sel.addEventListener('change', function(){ var it=ITEM[sel.value]||[0,0]; tr.setAttribute('data-price', it[0]); tr.setAttribute('data-cost', it[1]); persist(); renderReportBody(bus); });
     });
     Array.prototype.forEach.call(body.querySelectorAll('.dsDel'), function(b){ b.addEventListener('click', function(){ var tr=b.closest('tr[data-i]'); if(tr) tr.parentNode.removeChild(tr); persist(); renderReportBody(bus); }); });
-    var addBtn=$('dsAdd'); if(addBtn) addBtn.addEventListener('click', function(){ var nm=$('dsAddItem').value, q=parseFloat($('dsAddQty').value)||0; if(!nm||q<=0) return; var it=ITEM[nm]||[0,0]; var cur=collect(); cur.push([nm,q,it[0],it[1]]); var ds=getDaySet(); ds[r.d]=cur; saveDaySet(ds); var man={}; try{man=JSON.parse(LS.get('ohlly_manual')||'{}');}catch(e){} if(man[r.d]){ delete man[r.d]; LS.set('ohlly_manual',JSON.stringify(man)); } if(typeof rebuildReports==='function') rebuildReports(); renderReportBody(bus); });
+    var addBtn=$('dsAdd'); if(addBtn) addBtn.addEventListener('click', function(){ var nm=$('dsAddItem').value, q=parseFloat($('dsAddQty').value)||0; if(!nm||q<=0) return; var it=ITEM[nm]||[0,0]; var cur=collect(); cur.push([nm,q,it[0],it[1]]); var ds=getDaySet(); ds[r.d]=cur; saveDaySet(ds); if(typeof rebuildReports==='function') rebuildReports(); renderReportBody(bus); });
     var rsb=$('dsReset'); if(rsb) rsb.addEventListener('click', function(){ if(!window.confirm('Reset '+r.d+' to the imported numbers? Your manual edits for this day are discarded.')) return; var ds=getDaySet(); delete ds[r.d]; saveDaySet(ds); if(typeof rebuildReports==='function') rebuildReports(); renderReportBody(bus); });
   }
 
@@ -2044,7 +2047,7 @@
 
   // Per-business data keys cleared by the Reset button (menu/recipe config like ohlly_pos_alias is kept).
   var RESET_KEYS={
-    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}','ohlly_pricesnap':'{}','ohlly_dayset':'{}' },
+    ohllys:{ 'ohlly_imported':'{}','ohlly_fp_imported':'{}','ohlly_fp_manual':'{}','ohlly_manual':'{}','ohlly_manual_month':'{}','ohlly_txpay':'{}','ohlly_moneyin':'{}','ohlly_expenses':'{}','ohlly_ingredient_use':'{}','ohlly_pricesnap':'{}','ohlly_dayset':'{}' },
     pyu:{ 'pyu_prices':'null','pyu_salary':'null','pyu_exp':'null','pyu_cheques':'null','pyu_paid':'{}','pyu_deadlines':'{}','pyu_terms':'null','pyu_stmt_docs':'null','pyu_customers':'null' }
   };
   function resetBusinessData(key){
