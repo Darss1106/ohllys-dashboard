@@ -381,17 +381,6 @@
     Object.keys(RECIPE).forEach(function(nm){ if(ITEM[nm]){ ITEM[nm][1]=Math.round(recipeCost(nm)*100)/100; } });
     var co=ovrMap('ohlly_cost'); for(var nmc in co){ var cv=parseFloat(co[nmc]); if(ITEM[nmc]&&!isNaN(cv)) ITEM[nmc][1]=cv; }
   }
-  var POSEXPORT = [
-    ["08:48 PM","0004612","WALK-IN","ICED HONEY CINNAMON","Honey Cinnamon Oat",1,"195.00"],
-    ["08:44 PM","0004610","WALK-IN","CRISPY CHICKEN FILLET","Crispy Chicken Fillet",1,"195.00"],
-    ["08:14 PM","0004608","SIR PHILIP","DOUBLE CHEESE BURGER","Double Cheese Burger",3,"585.00"],
-    ["08:02 PM","0004607","WALK-IN","ICED FLAT WHITE","Flat White",1,"160.00"],
-    ["07:50 PM","0004604","WALK-IN","FRIES","French Fries",1,"120.00"],
-    ["04:22 PM","0004592","WALK-IN","SPAMSILOG","Spam (Spamsilog)",1,"215.00"],
-    ["04:22 PM","0004592","WALK-IN","MOJOS","Mojos",1,"180.00"],
-    ["03:42 PM","0004591","WALK-IN","STRAWBERRY SHAKE","Strawberry Shake",1,"170.00"],
-    ["02:11 PM","0004587","WALK-IN","ICED SEA SALT CARAMEL","Sea Salt Caramel",1,"195.00"]
-  ];
   var EXPENSES = [
     ["Monthly","Salary","fixed","15,120","staff pay"],
     ["Monthly","Rent","—","0","grace period"],
@@ -399,17 +388,6 @@
     ["Monthly","Water","—","0","grace period"],
     ["Monthly","Marketing / boosts","variable","5,000","sample — replace with actual"],
     ["Monthly","Supplies / packaging","variable","600","sample — replace with actual"]
-  ];
-  var MATCHMAP = [
-    ["ICED HONEY CINNAMON","Honey Cinnamon Oat"],
-    ["CRISPY CHICKEN FILLET","Crispy Chicken Fillet"],
-    ["DOUBLE CHEESE BURGER","Double Cheese Burger"],
-    ["ICED FLAT WHITE","Flat White"],
-    ["FRIES","French Fries"],
-    ["SPAMSILOG","Spam"],
-    ["MOJOS","Mojos"],
-    ["STRAWBERRY SHAKE","Strawberry Shake"],
-    ["ICED SEA SALT CARAMEL","Sea Salt Caramel"]
   ];
   function inFilter(name){ return itemFilter==='all' || (GROUP[name]||'fs')===itemFilter; }
   function filterOrder(order){ return order.filter(function(o){ return inFilter(o[0]); }); }
@@ -675,9 +653,16 @@
     if(!parsed.rows.length) return {ok:false, err:'no sales rows found in this file'};
     var matched={}, unmatched=[], mUnits=0, k;
     parsed.rows.forEach(function(r){ var c=mapPosItem(r.pos); if(c){ matched[c]=(matched[c]||0)+r.qty; mUnits+=r.qty; } else unmatched.push([r.pos,r.qty]); });
-    var imp=getImported(); if(!imp[parsed.d]) imp[parsed.d]={m:parsed.m,o:{}}; imp[parsed.d].m=parsed.m;
-    for(k in matched) imp[parsed.d].o[k]=matched[k];
-    saveImported(imp); rebuildReports();
+    var imp=getImported();
+    // "Category Sold" is a whole-day aggregate with no per-transaction detail. Replace the
+    // day outright so stale transaction data (.tx/.act/.lst) from an earlier transaction
+    // import can't drive wrong unit prices in rebuildReports (act ÷ new qty mismatch).
+    imp[parsed.d]={m:parsed.m, o:matched};
+    saveImported(imp);
+    // Drop per-day caches tied to the old transaction import so prices/splits re-seed cleanly.
+    try{ var snp=JSON.parse(LS.get('ohlly_pricesnap')||'{}'); if(snp[parsed.d]){ delete snp[parsed.d]; LS.set('ohlly_pricesnap', JSON.stringify(snp)); } }catch(e){}
+    try{ var txp=JSON.parse(LS.get('ohlly_txpay')||'{}'); if(txp[parsed.d]){ delete txp[parsed.d]; LS.set('ohlly_txpay', JSON.stringify(txp)); } }catch(e){}
+    rebuildReports();
     selDate=parsed.d;
     return {ok:true, d:parsed.d, m:parsed.m, matched:Object.keys(matched).length, units:mUnits, unmatched:unmatched};
   }
@@ -1921,12 +1906,11 @@
   }
 
   // Ohlly's items sold on Foodpanda, per period — [name, qty, Foodpanda price]
-  var FP_BY_DATE = {};
   var FP_PRICE = {"Sea Salt Matcha":275,"Matcha Latte":250,"Sea Salt Caramel":245,"Honey Cinnamon Oat":245,"Spanish Latte":225,"Mocha":225,"Mojos":225,"Ham and Cheese":187,"Alfredo Pasta":350,"Dirty Matcha":285,"Crispy Chicken Fillet":243,"Tuna Sandwich":187,"Double Cheese Burger":243};
   function getFpManual(date){ try{ var all=JSON.parse(LS.get('ohlly_fp_manual')||'{}'); if(all && all[date]) return all[date]; }catch(e){} return []; }
   function saveFpManual(date, rows){ try{ var all={}; try{all=JSON.parse(LS.get('ohlly_fp_manual')||'{}');}catch(e){} all[date]=rows; LS.set('ohlly_fp_manual', JSON.stringify(all)); }catch(e){} }
   function fpSectionHTML(key){
-    var items=(FP_BY_DATE[key]||[]).concat(getFpImported(key)).concat(getFpManual(key)), manual=getFpManual(key);
+    var items=getFpImported(key).concat(getFpManual(key)), manual=getFpManual(key);
     var rows=items.map(function(it){ var nm=it[0], qty=parseFloat(it[1])||0, price=parseFloat(it[2])||0, cost=(ITEM[nm]?ITEM[nm][1]:0); var sales=price*qty, cogs=cost*qty; return {nm:nm,qty:qty,price:price,sales:sales,cogs:cogs,gross:sales-cogs,fc:sales?100*cogs/sales:0}; });
     rows.sort(function(a,b){ return b.sales-a.sales; });
     var tQ=0,tS=0,tC=0,tG=0; rows.forEach(function(r){ tQ+=r.qty; tS+=r.sales; tC+=r.cogs; tG+=r.gross; });
@@ -1998,7 +1982,7 @@
     if(!r) return;
     var dset=getDaySet(), edited=!!(dset[r.d]), lines, listMap={};
     if(edited){ lines=dset[r.d].map(function(l){ return [l[0], +l[1]||0, +l[2]||0, +l[3]||0]; }); lines.forEach(function(l){ listMap[l[0]]=(ITEM[l[0]]?ITEM[l[0]][0]:l[2]); }); }
-    else { var c0=computeReport(filterOrder(r.order.concat(getManual(r.d)))); lines=c0.rows.map(function(x){ var q=x[1]; return [x[0], q, q?x[2]/q:0, q?x[3]/q:0]; });
+    else { var c0=computeReport(filterOrder(r.order)); lines=c0.rows.map(function(x){ var q=x[1]; return [x[0], q, q?x[2]/q:0, q?x[3]/q:0]; });
       (r.order||[]).forEach(function(l){ if(l.length>4 && l[4]!=null) listMap[l[0]]=l[4]; }); lines.forEach(function(l){ if(listMap[l[0]]==null) listMap[l[0]]=l[2]; }); }
     function listOf(nm,fallback){ return listMap[nm]!=null?listMap[nm]:fallback; }
     var tQ=0,tS=0,tC=0,tD=0; lines.forEach(function(l){ tQ+=l[1]; tS+=l[1]*l[2]; tC+=l[1]*l[3]; tD+=Math.max(0,(listOf(l[0],l[2])-l[2]))*l[1]; });
